@@ -46,6 +46,16 @@ https://xujiajun111.github.io/esg-climate-evidence-demo/
 
 详细说明见 [DEPLOY.md](./DEPLOY.md)。GitHub Pages 在国内的访问速度可能不稳定，这是免费静态方案的主要限制。
 
+## 分析准确性与回归测试
+
+当前规则分析器包含 9 个自动化回归案例，覆盖完整链路、A/B/C 断点、口号排除、未来计划排除、碳管理行动、同句多标签和数值提取。
+
+```powershell
+npm run test:analyzer
+```
+
+准确率边界与后续优化见 [docs/analysis-quality.md](./docs/analysis-quality.md)。
+
 ## 目录
 
 ```text

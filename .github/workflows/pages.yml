@@ -28,7 +28,7 @@ jobs:
           node-version: 22
 
       - name: Build static site
-        run: npm run build:static
+        run: npm run test:analyzer && npm run build:static
 
       - name: Configure Pages
         uses: actions/configure-pages@v5

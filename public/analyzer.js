@@ -6,11 +6,22 @@ const CLIMATE_TERMS = [
   "CO2",
   "CO₂",
   "碳强度",
+  "排放强度",
   "碳中和",
   "碳达峰",
+  "碳管理",
+  "碳台账",
+  "碳盘查",
+  "碳核查",
+  "碳足迹",
+  "碳交易",
   "能耗",
+  "耗能",
   "能效",
+  "能源消耗",
+  "能源消费",
   "绿电",
+  "绿证",
   "清洁能源",
   "可再生能源",
   "光伏",
@@ -18,6 +29,9 @@ const CLIMATE_TERMS = [
   "节能",
   "减排",
   "余热",
+  "余压",
+  "节能改造",
+  "资源综合利用",
   "CCUS"
 ];
 
@@ -30,8 +44,11 @@ const ACTION_TERMS = [
   "直购",
   "签约",
   "改造",
+  "技改",
   "安装",
+  "加装",
   "上线",
+  "部署",
   "建立",
   "开展",
   "实施",
@@ -39,8 +56,11 @@ const ACTION_TERMS = [
   "淘汰",
   "替换",
   "回收",
+  "利用",
   "培训",
   "认证",
+  "核查",
+  "盘查",
   "诊断",
   "优化",
   "运营"
@@ -53,12 +73,18 @@ const PERFORMANCE_TERMS = [
   "截至",
   "同比",
   "较上年",
+  "较去年",
   "较202",
+  "相较于",
   "下降",
+  "降低",
   "上升",
   "提升",
+  "提高",
   "达到",
   "实现",
+  "录得",
+  "共计",
   "为",
   "累计"
 ];
@@ -83,7 +109,7 @@ const METRIC_RULES = [
   },
   {
     tag: "energy",
-    pattern: /能耗|能效|节电|节能|余热|用电|能源管理/,
+    pattern: /能耗|耗能|能效|节电|节能|余热|余压|用电|能源管理|能源消耗|能源消费|节能量/,
     label: "能耗 / 节能"
   },
   {
@@ -93,7 +119,7 @@ const METRIC_RULES = [
   },
   {
     tag: "carbon",
-    pattern: /碳排放|温室气体|二氧化碳|CO2|CO₂|碳强度|吨钢碳|减排/,
+    pattern: /碳排放|温室气体|二氧化碳|CO2|CO₂|碳强度|吨钢碳|减排|排放强度|碳足迹/,
     label: "碳排放 / 温室气体"
   }
 ];
@@ -194,7 +220,7 @@ export function analyzeDocument(extraction, options = {}) {
     breakpoints,
     analysis_meta: {
       model_name: "本地规则分析器",
-      model_version: "0.1",
+      model_version: "0.2",
       prompt_version: "not_applicable",
       generated_at: new Date().toISOString(),
       human_review_required: true
@@ -216,7 +242,7 @@ function collectSentences(pages) {
     const paragraphs = mergeWrappedLines(lines);
     for (const paragraph of paragraphs) {
       const parts = paragraph
-        .split(/(?<=[。！？!?；;])/)
+        .split(/(?<=[。！？!?])/)
         .map((part) => part.trim())
         .filter((part) => part.length >= 6);
 
@@ -275,9 +301,19 @@ function classifySentence(text, fallbackYear) {
   const hasPerformanceSignal = PERFORMANCE_TERMS.some((term) =>
     compact.includes(term)
   );
-  const hasNumber = /\d+(?:\.\d+)?\s*(?:%|％|万吨|吨|万度|万千瓦时|千瓦时|万立方米|立方米|亿元|元)/.test(
-    compact
-  );
+  const measurement = inferMeasurement(compact);
+  const hasNumber = Boolean(measurement);
+  const hasActionPotential =
+    hasActionSignal &&
+    !/(计划|拟|将于|将在|预计|即将|力争|目标(?:是|为)?)/.test(compact) &&
+    !/^(到20|在20)/.test(compact);
+  const hasPerformancePotential =
+    hasPerformanceSignal &&
+    hasNumber &&
+    !futureYears.some((year) => year > currentYear) &&
+    !/(承诺|计划|目标|将|拟|预计).*(下降|降低|提升|提高|达到|实现)/.test(
+      compact
+    );
 
   const isCommitment =
     futureYears.length > 0 &&
@@ -286,6 +322,7 @@ function classifySentence(text, fallbackYear) {
 
   if (isCommitment) {
     const dueYear = Math.max(...futureYears);
+    const mixedSignals = hasActionPotential || hasPerformancePotential;
     return {
       element_type: "commitment",
       content: text,
@@ -297,33 +334,29 @@ function classifySentence(text, fallbackYear) {
         baseline_year: inferBaselineYear(compact, years),
         due_year: dueYear
       },
-      notes: "由规则根据截止年份、量化指标和气候主题识别，需人工复核。"
+      notes: mixedSignals
+        ? "句内同时存在目标以及行动或结果信号；按“一句话一个标签”优先标记为承诺，需人工拆分核对。"
+        : "由规则根据截止年份、量化指标和气候主题识别，需人工复核。"
     };
   }
 
-  if (
-    hasPerformanceSignal &&
-    hasNumber &&
-    !futureYears.some((year) => year > new Date().getFullYear()) &&
-    !/(承诺|计划|目标|将|拟|预计).*(下降|提升|达到|实现)/.test(compact)
-  ) {
+  if (hasPerformancePotential) {
+    const mixedSignals = hasActionPotential;
     return {
       element_type: "performance",
       content: text,
       report_year: inferSentenceReportYear(compact, null, fallbackYear),
       confidence: 0.84,
       metric: inferMetricLabel(compact),
-      value: inferResultValue(compact),
-      unit: inferUnit(compact),
-      notes: "由规则识别的当期或历史结果，需确认统计边界和对应行动。"
+      value: measurement.value,
+      unit: measurement.unit,
+      notes: mixedSignals
+        ? "句内同时存在行动与量化结果；按“一句话一个标签”标记为绩效，需人工核对是否应拆分原文。"
+        : "由规则识别的当期或历史结果，需确认统计边界和对应行动。"
     };
   }
 
-  if (
-    hasActionSignal &&
-    !/(计划|拟|将于|预计|即将|力争|目标)/.test(compact) &&
-    !/^(到20|在20)/.test(compact)
-  ) {
+  if (hasActionPotential) {
     return {
       element_type: "action",
       content: text,
@@ -364,13 +397,16 @@ function linkElements(commitments, actions, performances, multiDocument) {
       commitment.linked_performances.push(performance.id);
     }
 
-    const candidateActions = actions.filter(
-      (action) =>
-        performance.commitment_id &&
-        action.commitment_id === performance.commitment_id &&
+    const candidateActions = actions.filter((action) => {
+      const sameCommitmentScope = performance.commitment_id
+        ? action.commitment_id === performance.commitment_id
+        : !action.commitment_id;
+      return (
+        sameCommitmentScope &&
         (!multiDocument ||
           (action.report_year || 0) <= (performance.report_year || 9999))
-    );
+      );
+    });
     const action = chooseCommitment(candidateActions, performance);
     if (
       action &&
@@ -510,6 +546,23 @@ function buildBreakpoints(commitments, actions, performances, multiDocument) {
     index += 1;
   }
 
+  for (const action of actions.filter(
+    (item) => !item.commitment_id && item.linked_performances.length === 0
+  )) {
+    breakpoints.push({
+      id: `BP-${String(index).padStart(3, "0")}`,
+      type: "B",
+      commitment_id: null,
+      title: "有行动，但未披露行动级量化绩效",
+      reason:
+        "识别到已实施的减排行动，但未找到与该行动直接对应的减排量、节能量或绿电增量。",
+      missing_evidence: ["行动级量化结果"],
+      evidence_ids: [action.id],
+      review_status: "待核"
+    });
+    index += 1;
+  }
+
   return breakpoints;
 }
 
@@ -568,7 +621,7 @@ function inferMetricLabel(text) {
 
 function inferTargetValue(text) {
   const match = text.match(
-    /(下降|提升至|降至|达到|占比(?:提升)?至)\s*(\d+(?:\.\d+)?)\s*(%|％|万吨|吨|万度|万千瓦时|千瓦时)?/
+    /(下降|降低至|降低|减少至|提升至|提高至|增至|降至|达到|占比(?:提升)?至)\s*(\d+(?:\.\d+)?)\s*(%|％|个百分点|万吨|吨标煤|吨标准煤|吨|万度|万千瓦时|千瓦时)?/
   );
   if (match) {
     return `${match[2]}${match[3] || ""}`;
@@ -590,14 +643,18 @@ function inferBaselineYear(text, years) {
   return years.length > 1 ? Math.min(...years) : null;
 }
 
-function inferResultValue(text) {
-  const match = text.match(/(\d+(?:\.\d+)?)/);
-  return match ? Number(match[1]) : "";
-}
-
-function inferUnit(text) {
-  const match = text.match(/(%|％|万吨|吨|万度|万千瓦时|千瓦时|万立方米|立方米)/);
-  return match ? match[1] : "";
+function inferMeasurement(text) {
+  const pattern =
+    /(\d+(?:\.\d+)?)\s*(%|％|个百分点|万吨|吨标煤|吨标准煤|吨|万度|万千瓦时|千瓦时|kWh|MWh|GJ|万立方米|立方米|亿元|元)/i;
+  const matches = [...text.matchAll(new RegExp(pattern.source, "gi"))];
+  if (matches.length === 0) {
+    return null;
+  }
+  const match = matches.at(-1);
+  return {
+    value: Number(match[1]),
+    unit: match[2]
+  };
 }
 
 function inferActionKind(text) {
@@ -627,7 +684,28 @@ function isDirectActionPerformance(performance, action) {
     actionTags.has("green_power") &&
     /绿电|光伏|清洁能源|可再生能源/.test(performanceText);
 
-  return isGreenPowerPair;
+  if (isGreenPowerPair) {
+    return true;
+  }
+
+  const specificTerms = [
+    "余热",
+    "余压",
+    "烧结",
+    "锅炉",
+    "电机",
+    "空压机",
+    "中央空调",
+    "照明",
+    "分布式光伏",
+    "风电",
+    "能源管理平台",
+    "碳台账",
+    "CCUS"
+  ];
+  return specificTerms.some(
+    (term) => performanceText.includes(term) && actionText.includes(term)
+  );
 }
 
 function inferTags(text) {
