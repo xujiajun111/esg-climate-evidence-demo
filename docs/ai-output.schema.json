@@ -1,0 +1,507 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://carbon-trace.local/schemas/ai-output.schema.json",
+  "title": "气候承诺—行动—绩效 AI 输出协议",
+  "description": "AI 识别结果的固定交换格式。每条要素必须保留原文、类型和页码，断点只输出待复核候选。",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "analysis_mode",
+    "company",
+    "report_context",
+    "elements",
+    "breakpoints",
+    "warnings",
+    "analysis_meta"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "1.0"
+    },
+    "analysis_mode": {
+      "type": "string",
+      "enum": ["rule_preview", "llm"]
+    },
+    "company": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "industry"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "industry": {
+          "type": "string"
+        }
+      }
+    },
+    "report_context": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["report_years", "document_count"],
+      "properties": {
+        "report_years": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "integer",
+            "minimum": 1990,
+            "maximum": 2100
+          }
+        },
+        "document_count": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "elements": {
+      "type": "array",
+      "items": {
+        "oneOf": [
+          {
+            "$ref": "#/$defs/commitment"
+          },
+          {
+            "$ref": "#/$defs/action"
+          },
+          {
+            "$ref": "#/$defs/performance"
+          }
+        ]
+      }
+    },
+    "breakpoints": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/breakpoint"
+      }
+    },
+    "warnings": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "analysis_meta": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "model_name",
+        "model_version",
+        "prompt_version",
+        "generated_at",
+        "human_review_required"
+      ],
+      "properties": {
+        "model_name": {
+          "type": "string"
+        },
+        "model_version": {
+          "type": "string"
+        },
+        "prompt_version": {
+          "type": "string"
+        },
+        "generated_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "human_review_required": {
+          "const": true
+        }
+      }
+    }
+  },
+  "$defs": {
+    "common_fields": {
+      "type": "object",
+      "required": [
+        "id",
+        "element_type",
+        "content",
+        "report_year",
+        "page",
+        "source_quote",
+        "confidence",
+        "review_status",
+        "notes"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "element_type": {
+          "type": "string"
+        },
+        "content": {
+          "type": "string",
+          "minLength": 1,
+          "description": "要素的结构化描述，不得改变原文核心语义。"
+        },
+        "report_year": {
+          "type": "integer",
+          "minimum": 1990,
+          "maximum": 2100
+        },
+        "page": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "原文所在 PDF 页码，使用系统 PDF 的物理页码。"
+        },
+        "source_quote": {
+          "type": "string",
+          "minLength": 1,
+          "description": "逐字保留的原文证据，不允许 AI 改写。"
+        },
+        "confidence": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "review_status": {
+          "type": "string",
+          "enum": ["已核", "待核", "存疑"]
+        },
+        "notes": {
+          "type": "string"
+        }
+      }
+    },
+    "commitment": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/common_fields"
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "element_type",
+            "content",
+            "report_year",
+            "page",
+            "source_quote",
+            "confidence",
+            "review_status",
+            "notes",
+            "normalized_target",
+            "linked_actions",
+            "linked_performances",
+            "chain_status"
+          ],
+          "properties": {
+            "id": {
+              "pattern": "^C-[0-9]{2,}$"
+            },
+            "element_type": {
+              "const": "commitment"
+            },
+            "content": {
+              "type": "string",
+              "minLength": 1
+            },
+            "report_year": {
+              "type": "integer",
+              "minimum": 1990,
+              "maximum": 2100
+            },
+            "page": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "source_quote": {
+              "type": "string",
+              "minLength": 1
+            },
+            "confidence": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "review_status": {
+              "type": "string",
+              "enum": ["已核", "待核", "存疑"]
+            },
+            "notes": {
+              "type": "string"
+            },
+            "normalized_target": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "metric",
+                "target_value",
+                "baseline_year",
+                "due_year"
+              ],
+              "properties": {
+                "metric": {
+                  "type": "string"
+                },
+                "target_value": {
+                  "type": "string"
+                },
+                "baseline_year": {
+                  "type": ["integer", "string", "null"]
+                },
+                "due_year": {
+                  "type": "integer"
+                }
+              }
+            },
+            "linked_actions": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "pattern": "^A-[0-9]{2,}$"
+              }
+            },
+            "linked_performances": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "pattern": "^P-[0-9]{2,}$"
+              }
+            },
+            "chain_status": {
+              "type": "string",
+              "enum": [
+                "complete",
+                "breakpoint_a",
+                "breakpoint_b",
+                "breakpoint_c",
+                "needs_review"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "action": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/common_fields"
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "element_type",
+            "content",
+            "report_year",
+            "page",
+            "source_quote",
+            "confidence",
+            "review_status",
+            "notes",
+            "commitment_id",
+            "action_kind",
+            "linked_performances"
+          ],
+          "properties": {
+            "id": {
+              "pattern": "^A-[0-9]{2,}$"
+            },
+            "element_type": {
+              "const": "action"
+            },
+            "content": {
+              "type": "string",
+              "minLength": 1
+            },
+            "report_year": {
+              "type": "integer",
+              "minimum": 1990,
+              "maximum": 2100
+            },
+            "page": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "source_quote": {
+              "type": "string",
+              "minLength": 1
+            },
+            "confidence": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "review_status": {
+              "type": "string",
+              "enum": ["已核", "待核", "存疑"]
+            },
+            "notes": {
+              "type": "string"
+            },
+            "commitment_id": {
+              "type": ["string", "null"],
+              "pattern": "^C-[0-9]{2,}$"
+            },
+            "action_kind": {
+              "type": "string",
+              "enum": [
+                "项目",
+                "技术改造",
+                "采购安排",
+                "管理措施",
+                "其他"
+              ]
+            },
+            "linked_performances": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "pattern": "^P-[0-9]{2,}$"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "performance": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/common_fields"
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "element_type",
+            "content",
+            "report_year",
+            "page",
+            "source_quote",
+            "confidence",
+            "review_status",
+            "notes",
+            "metric",
+            "value",
+            "unit",
+            "performance_scope",
+            "commitment_id",
+            "action_id"
+          ],
+          "properties": {
+            "id": {
+              "pattern": "^P-[0-9]{2,}$"
+            },
+            "element_type": {
+              "const": "performance"
+            },
+            "content": {
+              "type": "string",
+              "minLength": 1
+            },
+            "report_year": {
+              "type": "integer",
+              "minimum": 1990,
+              "maximum": 2100
+            },
+            "page": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "source_quote": {
+              "type": "string",
+              "minLength": 1
+            },
+            "confidence": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "review_status": {
+              "type": "string",
+              "enum": ["已核", "待核", "存疑"]
+            },
+            "notes": {
+              "type": "string"
+            },
+            "metric": {
+              "type": "string"
+            },
+            "value": {
+              "type": ["number", "string"]
+            },
+            "unit": {
+              "type": "string"
+            },
+            "performance_scope": {
+              "type": "string",
+              "description": "单项行动结果、集团整体口径、无归属等。"
+            },
+            "commitment_id": {
+              "type": ["string", "null"],
+              "pattern": "^C-[0-9]{2,}$"
+            },
+            "action_id": {
+              "type": ["string", "null"],
+              "pattern": "^A-[0-9]{2,}$"
+            }
+          }
+        }
+      ]
+    },
+    "breakpoint": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "type",
+        "commitment_id",
+        "title",
+        "reason",
+        "missing_evidence",
+        "evidence_ids",
+        "review_status"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^BP-[0-9]{3,}$"
+        },
+        "type": {
+          "type": "string",
+          "enum": ["A", "B", "C"]
+        },
+        "commitment_id": {
+          "type": ["string", "null"],
+          "pattern": "^C-[0-9]{2,}$"
+        },
+        "title": {
+          "type": "string"
+        },
+        "reason": {
+          "type": "string",
+          "description": "必须说明缺失证据，不输出企业漂绿或造假结论。"
+        },
+        "missing_evidence": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string"
+          }
+        },
+        "evidence_ids": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string"
+          }
+        },
+        "review_status": {
+          "type": "string",
+          "enum": ["已核", "待核", "存疑"]
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,443 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="从可持续报告文本中审查气候承诺、行动、绩效与证据链断点。"
+    />
+    <title>气候证据链 · 审查工作台</title>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar">
+        <a class="brand" href="#top" aria-label="返回页面顶部">
+          <span class="brand-mark" aria-hidden="true">
+            <span></span>
+            <span></span>
+            <span></span>
+          </span>
+          <span>
+            <strong>碳迹智核</strong>
+            <small>CLIMATE TRACE</small>
+          </span>
+        </a>
+
+        <nav class="side-nav" aria-label="审查页面导航">
+          <p class="nav-label">审查流程</p>
+          <a class="nav-item is-active" href="#workbench">
+            <span class="nav-icon">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M4 5.5h16v13H4zM8 15l2.5-3 2.4 2.2L16.5 10" />
+              </svg>
+            </span>
+            文本入口
+            <span class="nav-step">01</span>
+          </a>
+          <a class="nav-item" href="#commitment-section">
+            <span class="nav-icon">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M12 3v18M5 8h14M7 16h10" />
+              </svg>
+            </span>
+            承诺展示
+            <span class="nav-step">02</span>
+          </a>
+          <a class="nav-item" href="#action-section">
+            <span class="nav-icon">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M5 12h14M14 7l5 5-5 5" />
+              </svg>
+            </span>
+            行动展示
+            <span class="nav-step">03</span>
+          </a>
+          <a class="nav-item" href="#performance-section">
+            <span class="nav-icon">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M4 18V9M10 18V5M16 18v-7M22 18H2" />
+              </svg>
+            </span>
+            绩效展示
+            <span class="nav-step">04</span>
+          </a>
+          <a class="nav-item" href="#breakpoint-section">
+            <span class="nav-icon">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M12 4 3 20h18L12 4zM12 10v4M12 17.2v.1" />
+              </svg>
+            </span>
+            断点提示
+            <span class="nav-step">05</span>
+          </a>
+        </nav>
+
+        <div class="sidebar-note">
+          <span class="note-dot"></span>
+          <p>断点仅作为核查线索</p>
+          <small>所有结论需经人工复核</small>
+        </div>
+      </aside>
+
+      <main class="main-content" id="top">
+        <header class="topbar">
+          <div class="breadcrumb">
+            <span>证据链工作台</span>
+            <i>/</i>
+            <strong>报告审查</strong>
+          </div>
+          <div class="topbar-actions">
+            <span class="service-status">
+              <i></i>
+              抽取与分析服务已连接
+            </span>
+            <button class="button button-quiet" id="open-schema-button" type="button">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="m8 9-4 3 4 3M16 9l4 3-4 3M13 5l-2 14" />
+              </svg>
+              输出协议
+            </button>
+          </div>
+        </header>
+
+        <div class="page">
+          <section class="page-heading">
+            <div>
+              <p class="eyebrow">SUSTAINABILITY DISCLOSURE REVIEW</p>
+              <h1>把披露文本，串成一条<span>可追溯的证据链</span></h1>
+              <p class="page-intro">
+                从气候目标出发，逐条核验承诺之后的行动与量化绩效，定位“有承诺、无进展”和“有行动、缺结果”等披露断点。
+              </p>
+            </div>
+            <div class="heading-meta">
+              <span>DEMO</span>
+              <strong>v0.1</strong>
+              <small>当前阶段：文本抽取</small>
+            </div>
+          </section>
+
+          <section class="workbench" id="workbench">
+            <div class="upload-card">
+              <div class="card-heading">
+                <div>
+                  <p class="section-kicker">STEP 01 · PDF INPUT</p>
+                  <h2>导入可持续报告</h2>
+                </div>
+                <span class="outline-badge">纯文本抽取</span>
+              </div>
+
+              <input
+                class="visually-hidden"
+                id="pdf-input"
+                type="file"
+                accept=".pdf,application/pdf"
+              />
+
+              <div
+                class="dropzone"
+                id="dropzone"
+                role="button"
+                tabindex="0"
+                aria-label="选择或拖入 PDF 文件"
+              >
+                <span class="upload-illustration" aria-hidden="true">
+                  <svg viewBox="0 0 64 64">
+                    <path d="M18 8h20l10 10v38H18z" />
+                    <path d="M38 8v12h10M25 36h16M25 43h12" />
+                    <path d="M13 25v25a5 5 0 0 0 5 5" />
+                  </svg>
+                  <i>
+                    <svg viewBox="0 0 24 24">
+                      <path d="M12 16V4M7 9l5-5 5 5M5 16v4h14v-4" />
+                    </svg>
+                  </i>
+                </span>
+                <h3>拖入 ESG / 可持续发展报告</h3>
+                <p>或点击选择 PDF，单文件不超过 30 MB</p>
+                <button class="button button-primary" id="select-file-button" type="button">
+                  选择 PDF
+                </button>
+                <div class="upload-alt">
+                  <span>还没有文件？</span>
+                  <button class="text-button" id="load-demo-button" type="button">
+                    载入演示数据
+                  </button>
+                </div>
+              </div>
+
+              <div class="file-progress" id="file-progress" hidden>
+                <div class="file-summary">
+                  <span class="file-type">PDF</span>
+                  <div>
+                    <strong id="current-file-name">报告文件.pdf</strong>
+                    <small id="current-file-size">0 MB</small>
+                  </div>
+                  <button
+                    class="icon-button"
+                    id="clear-file-button"
+                    type="button"
+                    aria-label="移除文件"
+                  >
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="m6 6 12 12M18 6 6 18" />
+                    </svg>
+                  </button>
+                </div>
+                <div class="process-steps" aria-label="处理进度">
+                  <div class="process-step is-complete" data-step="upload">
+                    <span>1</span>
+                    <p>上传</p>
+                  </div>
+                  <div class="process-line"></div>
+                  <div class="process-step is-active" data-step="extract">
+                    <span>2</span>
+                    <p>抽取</p>
+                  </div>
+                  <div class="process-line"></div>
+                  <div class="process-step" data-step="clean">
+                    <span>3</span>
+                    <p>清洗</p>
+                  </div>
+                  <div class="process-line"></div>
+                  <div class="process-step" data-step="recognize">
+                    <span>4</span>
+                    <p>识别</p>
+                  </div>
+                </div>
+                <p class="progress-message" id="progress-message">
+                  正在读取 PDF 页面与文本层…
+                </p>
+              </div>
+            </div>
+
+            <aside class="review-summary">
+              <div class="summary-heading">
+                <div>
+                  <p class="section-kicker">REVIEW OVERVIEW</p>
+                  <h2>本轮审查概览</h2>
+                </div>
+                <span class="mode-badge" id="data-mode-badge">演示数据</span>
+              </div>
+
+              <div class="stat-grid">
+                <article>
+                  <span class="stat-icon stat-commitment">
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M12 3v18M5 8h14M7 16h10" />
+                    </svg>
+                  </span>
+                  <strong id="commitment-count">04</strong>
+                  <small>气候承诺</small>
+                </article>
+                <article>
+                  <span class="stat-icon stat-action">
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M5 12h14M14 7l5 5-5 5" />
+                    </svg>
+                  </span>
+                  <strong id="action-count">03</strong>
+                  <small>落地行动</small>
+                </article>
+                <article>
+                  <span class="stat-icon stat-performance">
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M4 18V9M10 18V5M16 18v-7M22 18H2" />
+                    </svg>
+                  </span>
+                  <strong id="performance-count">03</strong>
+                  <small>量化绩效</small>
+                </article>
+                <article>
+                  <span class="stat-icon stat-breakpoint">
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M12 4 3 20h18L12 4zM12 10v4M12 17.2v.1" />
+                    </svg>
+                  </span>
+                  <strong id="breakpoint-count">03</strong>
+                  <small>断点提示</small>
+                </article>
+              </div>
+
+              <div class="legend-box">
+                <div>
+                  <span class="legend-dot legend-a"></span>
+                  <p><strong>A</strong> 有承诺，无跟进</p>
+                </div>
+                <div>
+                  <span class="legend-dot legend-b"></span>
+                  <p><strong>B</strong> 有行动，无单项绩效</p>
+                </div>
+                <div>
+                  <span class="legend-dot legend-c"></span>
+                  <p><strong>C</strong> 有绩效，无行动佐证</p>
+                </div>
+              </div>
+
+              <p class="summary-footnote">
+                <span>i</span>
+                <em id="summary-footnote-text">
+                  当前数字来自演示样本；上传 PDF 后将运行本地规则分析，输出均需人工复核。
+                </em>
+              </p>
+            </aside>
+          </section>
+
+          <section class="text-panel" id="text-panel" hidden>
+            <div class="text-panel-header">
+              <div>
+                <p class="section-kicker">EXTRACTION DEBUGGER</p>
+                <h2>文本抽取调试台</h2>
+                <p>检查分页、字符数与清洗结果，确认进入 AI 识别前的文本质量。</p>
+              </div>
+              <div class="text-panel-actions">
+                <button class="button button-quiet" id="copy-text-button" type="button">
+                  复制
+                </button>
+                <button class="button button-dark" id="download-text-button" type="button">
+                  下载 TXT
+                </button>
+              </div>
+            </div>
+
+            <div class="extraction-stats" id="extraction-stats"></div>
+
+            <div class="text-toolbar">
+              <div class="segmented-control" role="tablist" aria-label="文本视图">
+                <button
+                  class="is-active"
+                  id="clean-text-tab"
+                  type="button"
+                  role="tab"
+                  aria-selected="true"
+                >
+                  清洗文本
+                </button>
+                <button
+                  id="page-text-tab"
+                  type="button"
+                  role="tab"
+                  aria-selected="false"
+                >
+                  按页查看
+                </button>
+              </div>
+              <label class="text-search">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <circle cx="11" cy="11" r="6" />
+                  <path d="m16 16 5 5" />
+                </svg>
+                <input id="text-search-input" type="search" placeholder="在抽取文本中查找" />
+              </label>
+            </div>
+
+            <div class="text-preview" id="text-preview"></div>
+
+            <details class="debug-details">
+              <summary>查看清洗诊断</summary>
+              <div id="debug-details-content"></div>
+            </details>
+          </section>
+
+          <section class="evidence-section" id="commitment-section">
+            <div class="section-heading-row">
+              <div class="section-title-group">
+                <span class="section-number">02</span>
+                <div>
+                  <p class="section-kicker">COMMITMENTS</p>
+                  <h2>承诺展示区</h2>
+                  <p>识别具有明确指标、截止年份与气候相关性的未来目标。</p>
+                </div>
+              </div>
+              <span class="section-count" id="commitment-section-count">4 条承诺</span>
+            </div>
+            <div class="commitment-grid" id="commitment-list"></div>
+          </section>
+
+          <section class="evidence-section" id="action-section">
+            <div class="section-heading-row">
+              <div class="section-title-group">
+                <span class="section-number">03</span>
+                <div>
+                  <p class="section-kicker">ACTIONS</p>
+                  <h2>行动展示区</h2>
+                  <p>识别已经实施的项目、技术改造、采购安排与管理措施。</p>
+                </div>
+              </div>
+              <span class="section-count" id="action-section-count">3 条行动</span>
+            </div>
+            <div class="action-list" id="action-list"></div>
+          </section>
+
+          <section class="evidence-section" id="performance-section">
+            <div class="section-heading-row">
+              <div class="section-title-group">
+                <span class="section-number">04</span>
+                <div>
+                  <p class="section-kicker">PERFORMANCE</p>
+                  <h2>绩效展示区</h2>
+                  <p>呈现已经发生、带数值和单位的气候结果，不把未来目标当作绩效。</p>
+                </div>
+              </div>
+              <span class="section-count" id="performance-section-count">3 项绩效</span>
+            </div>
+            <div class="performance-grid" id="performance-list"></div>
+          </section>
+
+          <section class="breakpoint-section" id="breakpoint-section">
+            <div class="breakpoint-heading">
+              <div class="section-title-group">
+                <span class="section-number">05</span>
+                <div>
+                  <p class="section-kicker">EVIDENCE GAPS</p>
+                  <h2>断点提示区</h2>
+                  <p>按单条承诺追踪跨年度证据链，标记可复核的信息缺失位置。</p>
+                </div>
+              </div>
+              <div class="review-required">
+                <span></span>
+                待人工复核
+              </div>
+            </div>
+            <div class="breakpoint-list" id="breakpoint-list"></div>
+          </section>
+
+          <footer class="page-footer">
+            <p>碳迹智核 · ESG 气候信息披露证据链 Demo</p>
+            <p>本工具仅输出文本层面的核查线索，不判断企业漂绿、造假或违规。</p>
+          </footer>
+        </div>
+      </main>
+    </div>
+
+    <dialog class="schema-dialog" id="schema-dialog">
+      <div class="dialog-header">
+        <div>
+          <p class="section-kicker">FIXED CONTRACT · v1.0</p>
+          <h2>AI 固定输出协议</h2>
+        </div>
+        <button class="icon-button" id="close-schema-button" type="button" aria-label="关闭">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="m6 6 12 12M18 6 6 18" />
+          </svg>
+        </button>
+      </div>
+      <p class="dialog-intro">
+        每条输出必须包含原文内容、要素类型与来源定位；三类要素只允许使用
+        <code>commitment</code>、<code>action</code>、<code>performance</code>。
+      </p>
+      <pre id="schema-code"><code>正在载入协议…</code></pre>
+      <div class="dialog-actions">
+        <span>当前先由本地规则分析器填充，后续大模型接入沿用同一结构。</span>
+        <button class="button button-primary" id="copy-schema-button" type="button">
+          复制 JSON Schema
+        </button>
+      </div>
+    </dialog>
+
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>

@@ -1,0 +1,150 @@
+{
+  "schema_version": "1.0",
+  "analysis_mode": "rule_preview",
+  "company": {
+    "name": "某钢铁股份",
+    "industry": "钢铁"
+  },
+  "report_context": {
+    "report_years": [2022, 2023, 2024],
+    "document_count": 3
+  },
+  "elements": [
+    {
+      "id": "C-01",
+      "element_type": "commitment",
+      "content": "2030年绿电采购占比提升至40%",
+      "report_year": 2022,
+      "page": 17,
+      "source_quote": "到2030年，公司绿电采购占比提升至40%。",
+      "confidence": 0.96,
+      "review_status": "已核",
+      "notes": "量化指标、截止年份与绿电主题均满足承诺定义。",
+      "normalized_target": {
+        "metric": "绿电采购占比",
+        "target_value": "40%",
+        "baseline_year": null,
+        "due_year": 2030
+      },
+      "linked_actions": ["A-01"],
+      "linked_performances": ["P-01"],
+      "chain_status": "complete"
+    },
+    {
+      "id": "C-02",
+      "element_type": "commitment",
+      "content": "2028年吨钢碳排放较2020年下降18%",
+      "report_year": 2022,
+      "page": 18,
+      "source_quote": "公司承诺到2028年吨钢碳排放较2020年下降18%。",
+      "confidence": 0.94,
+      "review_status": "已核",
+      "notes": "基准年、目标值与截止年份明确。",
+      "normalized_target": {
+        "metric": "吨钢碳排放强度",
+        "target_value": "-18%",
+        "baseline_year": 2020,
+        "due_year": 2028
+      },
+      "linked_actions": ["A-02", "A-03"],
+      "linked_performances": ["P-02"],
+      "chain_status": "breakpoint_b"
+    },
+    {
+      "id": "A-01",
+      "element_type": "action",
+      "content": "厂区分布式光伏一期项目并网发电，并完成首笔绿电直购签约。",
+      "report_year": 2023,
+      "page": 23,
+      "source_quote": "年内厂区分布式光伏一期项目并网发电，完成首笔绿电直购签约。",
+      "confidence": 0.92,
+      "review_status": "已核",
+      "notes": "项目已实施，不是未来计划。",
+      "commitment_id": "C-01",
+      "action_kind": "项目",
+      "linked_performances": ["P-01"]
+    },
+    {
+      "id": "A-02",
+      "element_type": "action",
+      "content": "完成烧结工序余热回收节能改造。",
+      "report_year": 2023,
+      "page": 22,
+      "source_quote": "公司完成烧结工序余热回收节能改造。",
+      "confidence": 0.91,
+      "review_status": "已核",
+      "notes": "已落地技术改造，报告未单列改造节能量。",
+      "commitment_id": "C-02",
+      "action_kind": "技术改造",
+      "linked_performances": []
+    },
+    {
+      "id": "A-03",
+      "element_type": "action",
+      "content": "上线能源管理平台，覆盖主要生产工序并开展重点设备能耗诊断。",
+      "report_year": 2024,
+      "page": 24,
+      "source_quote": "能源管理平台已覆盖主要生产工序，并完成重点设备能耗诊断。",
+      "confidence": 0.88,
+      "review_status": "待核",
+      "notes": "平台已上线，但未披露平台带来的单项节能结果。",
+      "commitment_id": "C-02",
+      "action_kind": "管理措施",
+      "linked_performances": []
+    },
+    {
+      "id": "P-01",
+      "element_type": "performance",
+      "content": "本期绿电采购占比21%，较上年提升5个百分点。",
+      "report_year": 2024,
+      "page": 25,
+      "source_quote": "本期公司绿电采购占比为21%，较上年提升5个百分点。",
+      "confidence": 0.97,
+      "review_status": "已核",
+      "notes": "属于当期已发生结果，可对应光伏及绿电采购行动。",
+      "metric": "绿电采购占比",
+      "value": 21,
+      "unit": "%",
+      "performance_scope": "单项行动对应结果",
+      "commitment_id": "C-01",
+      "action_id": "A-01"
+    },
+    {
+      "id": "P-02",
+      "element_type": "performance",
+      "content": "本年度吨钢碳排放同比下降4.2%。",
+      "report_year": 2024,
+      "page": 25,
+      "source_quote": "本年度公司吨钢碳排放同比下降4.2%。",
+      "confidence": 0.93,
+      "review_status": "已核",
+      "notes": "为集团整体口径，未单列烧结改造或能源管理平台的产出。",
+      "metric": "吨钢碳排放强度",
+      "value": -4.2,
+      "unit": "%",
+      "performance_scope": "集团整体口径",
+      "commitment_id": "C-02",
+      "action_id": null
+    }
+  ],
+  "breakpoints": [
+    {
+      "id": "BP-001",
+      "type": "B",
+      "commitment_id": "C-02",
+      "title": "有行动，但缺少单项量化绩效",
+      "reason": "已检出两项对应行动，但只有集团整体吨钢碳排放数据，未披露各行动直接产生的节能量或减排量。",
+      "missing_evidence": ["行动级节能量", "行动级减排量"],
+      "evidence_ids": ["C-02", "A-02", "A-03", "P-02"],
+      "review_status": "待核"
+    }
+  ],
+  "warnings": [],
+  "analysis_meta": {
+    "model_name": "待接入",
+    "model_version": "not_connected",
+    "prompt_version": "1.0",
+    "generated_at": "2026-11-10T12:00:00+08:00",
+    "human_review_required": true
+  }
+}
