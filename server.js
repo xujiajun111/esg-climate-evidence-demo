@@ -3,7 +3,7 @@ import multer from "multer";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
-import { analyzeDocument } from "./lib/analyzer.js";
+import { analyzeDocument } from "./public/analyzer.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -59,6 +59,7 @@ app.use(
     maxAge: process.env.NODE_ENV === "production" ? "1h" : 0
   })
 );
+app.use("/docs", express.static(path.join(__dirname, "docs")));
 
 app.get("/api/health", (_request, response) => {
   response.json({

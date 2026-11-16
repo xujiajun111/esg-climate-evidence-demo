@@ -8,8 +8,8 @@
       content="从可持续报告文本中审查气候承诺、行动、绩效与证据链断点。"
     />
     <title>气候证据链 · 审查工作台</title>
-    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
-    <link rel="stylesheet" href="/styles.css" />
+    <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
     <div class="app-shell">
@@ -92,7 +92,7 @@
           <div class="topbar-actions">
             <span class="service-status">
               <i></i>
-              抽取与分析服务已连接
+              浏览器本地分析已就绪
             </span>
             <button class="button button-quiet" id="open-schema-button" type="button">
               <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -438,6 +438,7 @@
     </dialog>
 
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
-    <script type="module" src="/app.js"></script>
+    <script src="./vendor/pdf.min.js"></script>
+    <script type="module" src="./app.js"></script>
   </body>
 </html>

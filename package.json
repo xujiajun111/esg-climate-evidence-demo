@@ -6,7 +6,8 @@
   "description": "气候承诺—行动—绩效证据链审查 Demo",
   "scripts": {
     "start": "node server.js",
-    "dev": "node --watch server.js"
+    "dev": "node --watch server.js",
+    "build:static": "node scripts/build-static.mjs"
   },
   "engines": {
     "node": ">=20"

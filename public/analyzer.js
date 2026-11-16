@@ -1,3 +1,4 @@
+// Shared by the Node server and browser-only static deployment.
 const CLIMATE_TERMS = [
   "温室气体",
   "碳排放",

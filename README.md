@@ -36,9 +36,15 @@ PDF 上传成功后自动运行本地规则分析。规则分析适合演示流�
 
 ## 让朋友公网访问
 
-推荐使用 GitHub 保存代码、Render 运行网站。仓库已包含 `render.yaml` 和 `Dockerfile`，可直接自动部署。
+当前已提供纯浏览器静态版本，PDF 抽取和规则分析都在访问者本地完成。免费部署到 GitHub Pages，不需要服务器或银行卡。
 
-详细步骤见 [DEPLOY.md](./DEPLOY.md)。免费 Render 服务会在闲置后休眠；需要真正 24 小时不休眠时，应使用付费实例或云服务器。
+公网地址：
+
+```text
+https://xujiajun111.github.io/esg-climate-evidence-demo/
+```
+
+详细说明见 [DEPLOY.md](./DEPLOY.md)。GitHub Pages 在国内的访问速度可能不稳定，这是免费静态方案的主要限制。
 
 ## 目录
 

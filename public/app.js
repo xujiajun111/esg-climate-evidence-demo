@@ -1,3 +1,6 @@
+import { analyzeDocument } from "./analyzer.js";
+import { extractPdfInBrowser } from "./pdf-client.js";
+
 const sampleAnalysis = {
   schema_version: "1.0",
   company: {
@@ -460,19 +463,12 @@ async function handlePdfFile(file) {
   elements.progressMessage.textContent = "正在读取 PDF 页面与文本层…";
 
   try {
-    const formData = new FormData();
-    formData.append("pdf", file);
-
-    const response = await fetch("/api/extract", {
-      method: "POST",
-      body: formData
+    elements.progressMessage.textContent = "正在浏览器本地读取 PDF 文本层…";
+    const payload = await extractPdfInBrowser(file);
+    elements.progressMessage.textContent = "文本抽取完成，正在本地识别气候要素…";
+    payload.analysis = analyzeDocument(payload, {
+      multi_document: false
     });
-    const payload = await response.json();
-
-    if (!response.ok || !payload.ok) {
-      throw new Error(payload.error || "PDF 抽取失败");
-    }
-
     commitExtraction(payload);
   } catch (error) {
     elements.dataModeBadge.textContent = "抽取失败";
@@ -1016,7 +1012,7 @@ async function openSchemaDialog() {
   }
 
   try {
-    const response = await fetch("/api/schema");
+    const response = await fetch("./docs/ai-output.schema.json");
     if (!response.ok) {
       throw new Error("协议文件读取失败");
     }
