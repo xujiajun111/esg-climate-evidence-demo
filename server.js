@@ -10,6 +10,7 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const port = Number(process.env.PORT || 4173);
 const host = process.env.HOST || "0.0.0.0";
+const maxUploadMb = Number(process.env.MAX_UPLOAD_MB || 200);
 const uploadWindowMs = 10 * 60 * 1000;
 const uploadsPerWindow = Number(process.env.UPLOAD_LIMIT || 20);
 const uploadBuckets = new Map();
@@ -41,7 +42,7 @@ app.use((request, response, next) => {
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: {
-    fileSize: 30 * 1024 * 1024,
+    fileSize: maxUploadMb * 1024 * 1024,
     files: 1
   },
   fileFilter: (_request, file, callback) => {
@@ -195,7 +196,7 @@ app.use((error, _request, response, _next) => {
   if (error instanceof multer.MulterError && error.code === "LIMIT_FILE_SIZE") {
     return response.status(413).json({
       ok: false,
-      error: "文件超过 30 MB，请上传体积更小的报告。"
+      error: `文件超过 ${maxUploadMb} MB，请上传体积更小的报告。`
     });
   }
 

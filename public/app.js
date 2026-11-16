@@ -1,6 +1,8 @@
 import { analyzeDocument } from "./analyzer.js";
 import { extractPdfInBrowser } from "./pdf-client.js";
 
+const MAX_PDF_MB = 200;
+
 const sampleAnalysis = {
   schema_version: "1.0",
   company: {
@@ -197,6 +199,8 @@ const elements = {
   loadDemoButton: document.querySelector("#load-demo-button"),
   dropzone: document.querySelector("#dropzone"),
   fileProgress: document.querySelector("#file-progress"),
+  analysisStatusLabel: document.querySelector("#analysis-status-label"),
+  toggleTextButton: document.querySelector("#toggle-text-button"),
   currentFileName: document.querySelector("#current-file-name"),
   currentFileSize: document.querySelector("#current-file-size"),
   clearFileButton: document.querySelector("#clear-file-button"),
@@ -207,6 +211,10 @@ const elements = {
   performanceCount: document.querySelector("#performance-count"),
   breakpointCount: document.querySelector("#breakpoint-count"),
   textPanel: document.querySelector("#text-panel"),
+  collapseTextButton: document.querySelector("#collapse-text-button"),
+  logicSection: document.querySelector("#logic-section"),
+  logicSummary: document.querySelector("#logic-summary"),
+  logicResultGrid: document.querySelector("#logic-result-grid"),
   extractionStats: document.querySelector("#extraction-stats"),
   textPreview: document.querySelector("#text-preview"),
   cleanTextTab: document.querySelector("#clean-text-tab"),
@@ -293,10 +301,14 @@ function bindUploadEvents() {
       return;
     }
     elements.fileProgress.hidden = true;
+    elements.fileProgress.classList.remove("is-complete");
+    elements.textPanel.hidden = true;
+    elements.toggleTextButton.disabled = true;
+    elements.toggleTextButton.textContent = "查看文本抽取过程";
     state.analysis = sampleAnalysis;
     elements.dataModeBadge.textContent = "演示数据";
     renderAnalysis(sampleAnalysis);
-    document.querySelector("#commitment-section").scrollIntoView({
+    document.querySelector("#logic-section").scrollIntoView({
       behavior: "smooth",
       block: "start"
     });
@@ -304,6 +316,14 @@ function bindUploadEvents() {
 }
 
 function bindTextEvents() {
+  elements.toggleTextButton.addEventListener("click", () => {
+    setTextPanelVisibility(elements.textPanel.hidden);
+  });
+
+  elements.collapseTextButton.addEventListener("click", () => {
+    setTextPanelVisibility(false);
+  });
+
   elements.cleanTextTab.addEventListener("click", () => {
     state.textView = "clean";
     updateTextView();
@@ -447,8 +467,8 @@ async function handlePdfFile(file) {
     return;
   }
 
-  if (file.size > 30 * 1024 * 1024) {
-    showToast("文件超过 30 MB，请压缩后再试");
+  if (file.size > MAX_PDF_MB * 1024 * 1024) {
+    showToast(`文件超过 ${MAX_PDF_MB} MB，请压缩后再试`);
     elements.pdfInput.value = "";
     return;
   }
@@ -457,8 +477,11 @@ async function handlePdfFile(file) {
   elements.currentFileName.textContent = file.name;
   elements.currentFileSize.textContent = formatFileSize(file.size);
   elements.fileProgress.hidden = false;
+  elements.fileProgress.classList.remove("is-complete");
   elements.dataModeBadge.textContent = "抽取中";
   elements.clearFileButton.disabled = true;
+  elements.toggleTextButton.disabled = true;
+  elements.analysisStatusLabel.textContent = "正在本地分析…";
   setProgressStep("extract", "active");
   elements.progressMessage.textContent = "正在读取 PDF 页面与文本层…";
 
@@ -472,6 +495,8 @@ async function handlePdfFile(file) {
     commitExtraction(payload);
   } catch (error) {
     elements.dataModeBadge.textContent = "抽取失败";
+    elements.analysisStatusLabel.textContent = "分析失败 · 请检查 PDF";
+    elements.toggleTextButton.disabled = true;
     elements.progressMessage.textContent =
       error.message || "PDF 抽取失败，请稍后重试。";
     setProgressStep("extract", "error");
@@ -495,7 +520,10 @@ function commitExtraction(payload) {
   renderExtractionStats(payload.stats);
   renderDebugDetails(payload.debug);
   updateTextView();
-  elements.textPanel.hidden = false;
+  elements.textPanel.hidden = true;
+  elements.toggleTextButton.disabled = false;
+  elements.toggleTextButton.textContent = "查看文本抽取过程";
+  elements.fileProgress.classList.add("is-complete");
 
   const analysis = normalizeAnalysis(payload.analysis);
   const counts = {
@@ -515,9 +543,11 @@ function commitExtraction(payload) {
 
   if (analysis.elements.length === 0) {
     elements.dataModeBadge.textContent = "未识别";
+    elements.analysisStatusLabel.textContent = "分析完成 · 未找到有效要素";
     elements.progressMessage.textContent =
       `已抽取 ${payload.stats.page_count} 页，但未找到满足规则的气候要素。请检查下方文本；扫描版 PDF 还需 OCR。`;
     setProgressStep("recognize", "complete");
+    renderInsightPanel(analysis);
     clearElementSections(
       "未识别到气候要素",
       "请确认报告是否包含可抽取的文字层，并检查原文是否明确写出年份、指标或已实施措施。"
@@ -526,6 +556,7 @@ function commitExtraction(payload) {
     showToast("文本抽取完成，但未识别到三类气候要素");
   } else {
     elements.dataModeBadge.textContent = "规则分析";
+    elements.analysisStatusLabel.textContent = "分析完成 · 已生成证据链";
     elements.progressMessage.textContent =
       `已抽取 ${payload.stats.page_count} 页并生成规则分析：${counts.commitments} 条承诺、${counts.actions} 条行动、${counts.performances} 项绩效。`;
     setProgressStep("recognize", "complete");
@@ -537,12 +568,22 @@ function commitExtraction(payload) {
 
   elements.summaryFootnoteText.textContent =
     "当前结果由本地规则分析器生成，用于检查页面和证据链流程；分类、关联和断点均需人工复核。";
-  elements.textPanel.scrollIntoView({ behavior: "smooth", block: "start" });
+  elements.logicSection.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
 function updateProcessStep(stepName) {
   const step = document.querySelector(`[data-step="${stepName}"]`);
   return step;
+}
+
+function setTextPanelVisibility(isVisible) {
+  elements.textPanel.hidden = !isVisible;
+  elements.toggleTextButton.textContent = isVisible
+    ? "收起文本抽取过程"
+    : "查看文本抽取过程";
+  if (isVisible) {
+    elements.textPanel.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
 }
 
 function setProgressStep(stepName, status) {
@@ -667,6 +708,7 @@ function renderAnalysis(analysis) {
   renderActions(actions);
   renderPerformances(performances);
   renderBreakpoints(analysis.breakpoints);
+  renderInsightPanel(analysis);
   updateSummary({
     commitments: commitments.length,
     actions: actions.length,
@@ -676,11 +718,69 @@ function renderAnalysis(analysis) {
   setSectionCounts(commitments.length, actions.length, performances.length);
 }
 
+function renderInsightPanel(analysis) {
+  const commitments = analysis.elements.filter(
+    (element) => element.element_type === "commitment"
+  );
+  const actions = analysis.elements.filter(
+    (element) => element.element_type === "action"
+  );
+  const performances = analysis.elements.filter(
+    (element) => element.element_type === "performance"
+  );
+  const completeChains = commitments.filter(
+    (commitment) => commitment.chain_status === "complete"
+  ).length;
+  const breakpointCounts = { A: 0, B: 0, C: 0 };
+  for (const breakpoint of analysis.breakpoints) {
+    if (breakpoint.type in breakpointCounts) {
+      breakpointCounts[breakpoint.type] += 1;
+    }
+  }
+  const traceable = analysis.elements.filter(
+    (element) =>
+      (element.source_quote || element.content) && Number.isInteger(element.page)
+  ).length;
+  const traceabilityRate =
+    analysis.elements.length === 0
+      ? 0
+      : Math.round((traceable / analysis.elements.length) * 100);
+  const gapCount = analysis.breakpoints.length;
+
+  elements.logicSummary.textContent =
+    commitments.length === 0
+      ? "当前文本未形成有效承诺链；请查看承诺识别结果或展开文本抽取过程核对原文。"
+      : `共识别 ${commitments.length} 条承诺、${actions.length} 条行动和 ${performances.length} 项绩效。${completeChains} 条承诺形成完整证据链，${gapCount} 条出现证据缺失或待确认断点。`;
+
+  elements.logicResultGrid.innerHTML = `
+    <article class="logic-result-card is-primary">
+      <small>可追溯证据</small>
+      <strong>${traceabilityRate}%</strong>
+      <p>${traceable} / ${analysis.elements.length} 条结果保留原文与页码</p>
+    </article>
+    <article class="logic-result-card">
+      <small>完整证据链</small>
+      <strong>${padCount(completeChains)}</strong>
+      <p>承诺、对应行动与绩效均已检出</p>
+    </article>
+    <article class="logic-result-card">
+      <small>A · 承诺无跟进</small>
+      <strong>${padCount(breakpointCounts.A)}</strong>
+      <p>需跨后续年度报告持续确认</p>
+    </article>
+    <article class="logic-result-card">
+      <small>B / C · 证据链断裂</small>
+      <strong>${padCount(breakpointCounts.B + breakpointCounts.C)}</strong>
+      <p>B ${breakpointCounts.B} 条行动缺结果，C ${breakpointCounts.C} 条绩效缺支撑</p>
+    </article>
+  `;
+}
+
 function renderCommitments(commitments) {
   if (commitments.length === 0) {
     elements.commitmentList.innerHTML = emptyState(
       "等待承诺要素",
-      "上传报告并接入 AI 后，具有量化指标及截止年份的气候目标将展示在这里。"
+      "上传报告后，具有量化指标及截止年份的气候目标将展示在这里。"
     );
     return;
   }
@@ -996,7 +1096,10 @@ function resetToDemo() {
   state.currentText = "";
   state.query = "";
   elements.fileProgress.hidden = true;
+  elements.fileProgress.classList.remove("is-complete");
   elements.textPanel.hidden = true;
+  elements.toggleTextButton.disabled = true;
+  elements.toggleTextButton.textContent = "查看文本抽取过程";
   elements.textSearchInput.value = "";
   elements.dataModeBadge.textContent = "演示数据";
   state.analysis = sampleAnalysis;

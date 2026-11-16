@@ -767,6 +767,17 @@ svg {
   font-weight: 700;
 }
 
+.process-step.is-error span {
+  color: #ffffff;
+  border-color: var(--red);
+  background: var(--red);
+}
+
+.process-step.is-error p {
+  color: var(--red);
+  font-weight: 700;
+}
+
 .process-line {
   height: 1px;
   margin: 12px 5px 0;
@@ -778,6 +789,45 @@ svg {
   color: var(--muted);
   font-size: 10px;
   text-align: center;
+}
+
+.file-progress.is-complete {
+  padding-bottom: 15px;
+}
+
+.file-progress.is-complete .process-steps {
+  display: none;
+}
+
+.file-progress.is-complete .progress-message {
+  margin-top: 16px;
+  color: var(--ink-soft);
+  font-weight: 600;
+}
+
+.file-quick-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line-soft);
+}
+
+.file-quick-actions span {
+  color: var(--muted);
+  font-size: 9px;
+}
+
+.file-quick-actions .text-button {
+  flex: 0 0 auto;
+  font-size: 10px;
+}
+
+.file-quick-actions .text-button:disabled {
+  color: var(--muted-light);
+  cursor: not-allowed;
 }
 
 .review-summary {
@@ -1102,6 +1152,179 @@ svg {
   margin: 10px 0 0;
   padding-left: 18px;
   line-height: 1.8;
+}
+
+.logic-section {
+  position: relative;
+  overflow: hidden;
+  margin-top: 22px;
+  padding: 28px;
+  border: 1px solid rgba(198, 232, 117, 0.18);
+  border-radius: var(--radius-lg);
+  color: #eff7f2;
+  background:
+    radial-gradient(circle at 94% 8%, rgba(198, 232, 117, 0.2), transparent 18rem),
+    linear-gradient(135deg, #0a352b, #10251f 70%);
+  box-shadow: 0 18px 50px rgba(9, 44, 36, 0.15);
+}
+
+.logic-section::after {
+  position: absolute;
+  right: -55px;
+  bottom: -95px;
+  width: 230px;
+  height: 230px;
+  border: 1px solid rgba(198, 232, 117, 0.12);
+  border-radius: 50%;
+  content: "";
+  box-shadow:
+    0 0 0 30px rgba(198, 232, 117, 0.025),
+    0 0 0 62px rgba(198, 232, 117, 0.018);
+}
+
+.logic-heading {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+}
+
+.logic-heading h2 {
+  margin: 0;
+  color: #ffffff;
+  font-size: 22px;
+  letter-spacing: -0.03em;
+}
+
+.logic-heading p:not(.section-kicker) {
+  max-width: 760px;
+  margin: 9px 0 0;
+  color: rgba(239, 247, 242, 0.66);
+  font-size: 11px;
+  line-height: 1.8;
+}
+
+.logic-heading .section-kicker {
+  color: var(--lime);
+}
+
+.logic-status {
+  flex: 0 0 auto;
+  padding: 7px 10px;
+  border: 1px solid rgba(198, 232, 117, 0.22);
+  border-radius: 999px;
+  color: var(--lime);
+  background: rgba(198, 232, 117, 0.06);
+  font-size: 9px;
+  font-weight: 700;
+}
+
+.logic-flow {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr auto 1fr auto 1fr;
+  align-items: center;
+  gap: 11px;
+  margin-top: 24px;
+}
+
+.logic-flow > i {
+  color: rgba(198, 232, 117, 0.45);
+  font-family: Georgia, serif;
+  font-size: 18px;
+  font-style: normal;
+}
+
+.logic-flow-node {
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.045);
+}
+
+.logic-flow-node span {
+  color: var(--lime);
+  font-family: Consolas, monospace;
+  font-size: 9px;
+}
+
+.logic-flow-node strong {
+  display: block;
+  margin-top: 8px;
+  color: #ffffff;
+  font-size: 13px;
+}
+
+.logic-flow-node small {
+  display: block;
+  margin-top: 4px;
+  overflow: hidden;
+  color: rgba(239, 247, 242, 0.5);
+  font-size: 8px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.logic-flow-gap {
+  border-color: rgba(232, 169, 91, 0.28);
+  background: rgba(232, 169, 91, 0.08);
+}
+
+.logic-flow-gap span {
+  color: #f1be7a;
+}
+
+.logic-result-grid {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: 1.15fr repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.logic-result-card {
+  min-height: 104px;
+  padding: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.045);
+}
+
+.logic-result-card.is-primary {
+  border-color: rgba(198, 232, 117, 0.24);
+  background: rgba(198, 232, 117, 0.09);
+}
+
+.logic-result-card small {
+  display: block;
+  color: rgba(239, 247, 242, 0.5);
+  font-size: 8px;
+}
+
+.logic-result-card strong {
+  display: block;
+  margin-top: 10px;
+  color: #ffffff;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 27px;
+  font-weight: 500;
+  line-height: 1;
+}
+
+.logic-result-card p {
+  margin: 8px 0 0;
+  color: rgba(239, 247, 242, 0.65);
+  font-size: 9px;
+  line-height: 1.55;
+}
+
+.logic-result-card.is-primary strong {
+  color: var(--lime);
 }
 
 .evidence-section {
@@ -1967,6 +2190,54 @@ svg {
 
   .text-panel-header {
     display: block;
+  }
+
+  .logic-section {
+    padding: 21px;
+    border-radius: 18px;
+  }
+
+  .logic-heading {
+    display: block;
+  }
+
+  .logic-status {
+    display: inline-flex;
+    margin-top: 13px;
+  }
+
+  .logic-flow {
+    grid-template-columns: 1fr;
+    gap: 7px;
+  }
+
+  .logic-flow > i {
+    display: none;
+  }
+
+  .logic-flow-node {
+    display: grid;
+    grid-template-columns: 28px 55px 1fr;
+    align-items: center;
+    gap: 8px;
+    padding: 11px 12px;
+  }
+
+  .logic-flow-node strong,
+  .logic-flow-node small {
+    margin: 0;
+  }
+
+  .logic-flow-node small {
+    white-space: normal;
+  }
+
+  .logic-result-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .logic-result-card.is-primary {
+    grid-column: 1 / -1;
   }
 
   .text-panel-actions {

@@ -34,7 +34,7 @@
                 <path d="M4 5.5h16v13H4zM8 15l2.5-3 2.4 2.2L16.5 10" />
               </svg>
             </span>
-            文本入口
+            结果总览
             <span class="nav-step">01</span>
           </a>
           <a class="nav-item" href="#commitment-section">
@@ -114,8 +114,8 @@
             </div>
             <div class="heading-meta">
               <span>DEMO</span>
-              <strong>v0.1</strong>
-              <small>当前阶段：文本抽取</small>
+              <strong>v0.2</strong>
+              <small>当前阶段：证据链分析</small>
             </div>
           </section>
 
@@ -126,7 +126,7 @@
                   <p class="section-kicker">STEP 01 · PDF INPUT</p>
                   <h2>导入可持续报告</h2>
                 </div>
-                <span class="outline-badge">纯文本抽取</span>
+                <span class="outline-badge">浏览器本地处理</span>
               </div>
 
               <input
@@ -156,7 +156,7 @@
                   </i>
                 </span>
                 <h3>拖入 ESG / 可持续发展报告</h3>
-                <p>或点击选择 PDF，单文件不超过 30 MB</p>
+                <p>或点击选择 PDF，单文件不超过 200 MB</p>
                 <button class="button button-primary" id="select-file-button" type="button">
                   选择 PDF
                 </button>
@@ -210,6 +210,17 @@
                 <p class="progress-message" id="progress-message">
                   正在读取 PDF 页面与文本层…
                 </p>
+                <div class="file-quick-actions">
+                  <span id="analysis-status-label">正在分析…</span>
+                  <button
+                    class="text-button"
+                    id="toggle-text-button"
+                    type="button"
+                    disabled
+                  >
+                    查看文本抽取过程
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -293,6 +304,9 @@
                 <p>检查分页、字符数与清洗结果，确认进入 AI 识别前的文本质量。</p>
               </div>
               <div class="text-panel-actions">
+                <button class="button button-quiet" id="collapse-text-button" type="button">
+                  收起过程
+                </button>
                 <button class="button button-quiet" id="copy-text-button" type="button">
                   复制
                 </button>
@@ -339,6 +353,47 @@
               <summary>查看清洗诊断</summary>
               <div id="debug-details-content"></div>
             </details>
+          </section>
+
+          <section class="logic-section" id="logic-section">
+            <div class="logic-heading">
+              <div>
+                <p class="section-kicker">ANALYSIS LOGIC</p>
+                <h2>证据链逻辑与关键结论</h2>
+                <p id="logic-summary">
+                  按“承诺 → 行动 → 绩效”逐条核验，并将缺失环节转换为待复核断点。
+                </p>
+              </div>
+              <span class="logic-status">单条承诺独立追踪</span>
+            </div>
+
+            <div class="logic-flow" aria-label="证据链分析逻辑">
+              <div class="logic-flow-node">
+                <span>01</span>
+                <strong>承诺</strong>
+                <small>量化目标 + 截止年份</small>
+              </div>
+              <i>→</i>
+              <div class="logic-flow-node">
+                <span>02</span>
+                <strong>行动</strong>
+                <small>已经实施的减排措施</small>
+              </div>
+              <i>→</i>
+              <div class="logic-flow-node">
+                <span>03</span>
+                <strong>绩效</strong>
+                <small>带数值与单位的结果</small>
+              </div>
+              <i>→</i>
+              <div class="logic-flow-node logic-flow-gap">
+                <span>!</span>
+                <strong>断点</strong>
+                <small>标记缺失证据环节</small>
+              </div>
+            </div>
+
+            <div class="logic-result-grid" id="logic-result-grid"></div>
           </section>
 
           <section class="evidence-section" id="commitment-section">
