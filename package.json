@@ -8,7 +8,9 @@
     "start": "node server.js",
     "dev": "node --watch server.js",
     "build:static": "node scripts/build-static.mjs",
-    "test:analyzer": "node tests/analyzer-regression.mjs"
+    "test:analyzer": "node tests/analyzer-regression.mjs",
+    "test:chain": "node tests/chain-model-regression.mjs",
+    "test": "npm run test:analyzer && npm run test:chain"
   },
   "engines": {
     "node": ">=20"

@@ -37,6 +37,18 @@
             结果总览
             <span class="nav-step">01</span>
           </a>
+          <a class="nav-item" href="#chain-section">
+            <span class="nav-icon">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <circle cx="5" cy="6" r="2" />
+                <circle cx="19" cy="12" r="2" />
+                <circle cx="5" cy="18" r="2" />
+                <path d="M7 6h3a2 2 0 0 1 2 2v2a2 2 0 0 0 2 2h3M7 18h3a2 2 0 0 0 2-2v-2a2 2 0 0 1 2-2" />
+              </svg>
+            </span>
+            证据图谱
+            <span class="nav-step">02</span>
+          </a>
           <a class="nav-item" href="#commitment-section">
             <span class="nav-icon">
               <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -44,7 +56,7 @@
               </svg>
             </span>
             承诺展示
-            <span class="nav-step">02</span>
+            <span class="nav-step">03</span>
           </a>
           <a class="nav-item" href="#action-section">
             <span class="nav-icon">
@@ -53,7 +65,7 @@
               </svg>
             </span>
             行动展示
-            <span class="nav-step">03</span>
+            <span class="nav-step">04</span>
           </a>
           <a class="nav-item" href="#performance-section">
             <span class="nav-icon">
@@ -62,7 +74,7 @@
               </svg>
             </span>
             绩效展示
-            <span class="nav-step">04</span>
+            <span class="nav-step">05</span>
           </a>
           <a class="nav-item" href="#breakpoint-section">
             <span class="nav-icon">
@@ -71,7 +83,7 @@
               </svg>
             </span>
             断点提示
-            <span class="nav-step">05</span>
+            <span class="nav-step">06</span>
           </a>
         </nav>
 
@@ -114,7 +126,7 @@
             </div>
             <div class="heading-meta">
               <span>DEMO</span>
-              <strong>v0.2</strong>
+              <strong>v0.3</strong>
               <small>当前阶段：证据链分析</small>
             </div>
           </section>
@@ -396,10 +408,84 @@
             <div class="logic-result-grid" id="logic-result-grid"></div>
           </section>
 
+          <section class="chain-section" id="chain-section">
+            <div class="chain-heading">
+              <div class="section-title-group">
+                <span class="section-number">02</span>
+                <div>
+                  <p class="section-kicker">EVIDENCE MAP</p>
+                  <h2>证据链图谱</h2>
+                  <p>沿承诺逐层追踪关联行动、量化绩效与待复核断点。</p>
+                </div>
+              </div>
+              <div class="chain-filter-group" id="chain-filter-group" role="group" aria-label="筛选证据链">
+                <button class="is-active" type="button" data-chain-filter="all">
+                  全部 <strong>0</strong>
+                </button>
+                <button type="button" data-chain-filter="complete">
+                  完整 <strong>0</strong>
+                </button>
+                <button type="button" data-chain-filter="A">
+                  A <strong>0</strong>
+                </button>
+                <button type="button" data-chain-filter="B">
+                  B <strong>0</strong>
+                </button>
+                <button type="button" data-chain-filter="C">
+                  C <strong>0</strong>
+                </button>
+              </div>
+            </div>
+
+            <div class="chain-dashboard">
+              <div class="chain-health-panel">
+                <div class="chain-panel-heading">
+                  <span>链路完整度</span>
+                  <small id="chain-health-caption">0 / 0</small>
+                </div>
+                <div class="chain-health-body">
+                  <div class="chain-ring" id="chain-health-ring" aria-hidden="true"></div>
+                  <div class="chain-health-copy">
+                    <strong id="chain-health-rate">0%</strong>
+                    <p id="chain-health-summary">等待证据链分析</p>
+                  </div>
+                </div>
+                <div class="chain-health-legend">
+                  <span><i class="is-complete"></i>完整</span>
+                  <span><i class="is-gap"></i>待核</span>
+                  <span><i class="is-orphan"></i>孤立证据</span>
+                </div>
+              </div>
+
+              <div class="chain-year-panel">
+                <div class="chain-panel-heading">
+                  <span>披露年份分布</span>
+                  <small>点击年份聚焦证据</small>
+                </div>
+                <div class="chain-year-chart" id="chain-year-chart"></div>
+              </div>
+            </div>
+
+            <div class="chain-workspace">
+              <div class="chain-canvas">
+                <div class="chain-column-heads" aria-hidden="true">
+                  <span>状态</span>
+                  <span>气候承诺</span>
+                  <span></span>
+                  <span>落地行动</span>
+                  <span></span>
+                  <span>量化绩效</span>
+                </div>
+                <div class="chain-map" id="chain-map"></div>
+              </div>
+              <aside class="chain-inspector" id="chain-inspector" aria-live="polite"></aside>
+            </div>
+          </section>
+
           <section class="evidence-section" id="commitment-section">
             <div class="section-heading-row">
               <div class="section-title-group">
-                <span class="section-number">02</span>
+                <span class="section-number">03</span>
                 <div>
                   <p class="section-kicker">COMMITMENTS</p>
                   <h2>承诺展示区</h2>
@@ -414,7 +500,7 @@
           <section class="evidence-section" id="action-section">
             <div class="section-heading-row">
               <div class="section-title-group">
-                <span class="section-number">03</span>
+                <span class="section-number">04</span>
                 <div>
                   <p class="section-kicker">ACTIONS</p>
                   <h2>行动展示区</h2>
@@ -429,7 +515,7 @@
           <section class="evidence-section" id="performance-section">
             <div class="section-heading-row">
               <div class="section-title-group">
-                <span class="section-number">04</span>
+                <span class="section-number">05</span>
                 <div>
                   <p class="section-kicker">PERFORMANCE</p>
                   <h2>绩效展示区</h2>
@@ -444,7 +530,7 @@
           <section class="breakpoint-section" id="breakpoint-section">
             <div class="breakpoint-heading">
               <div class="section-title-group">
-                <span class="section-number">05</span>
+                <span class="section-number">06</span>
                 <div>
                   <p class="section-kicker">EVIDENCE GAPS</p>
                   <h2>断点提示区</h2>

@@ -1,4 +1,10 @@
 import { analyzeDocument } from "./analyzer.js";
+import {
+  buildEvidenceChains,
+  buildYearSeries,
+  filterEvidenceChains,
+  findChainForEvidence
+} from "./chain-model.js";
 import { extractPdfInBrowser } from "./pdf-client.js";
 
 const MAX_PDF_MB = 200;
@@ -190,7 +196,11 @@ const state = {
   schemaText: "",
   isUploading: false,
   navigationFrame: null,
-  toastTimer: null
+  toastTimer: null,
+  evidenceChains: [],
+  chainFilter: "all",
+  chainYearFilter: "all",
+  selectedEvidenceId: null
 };
 
 const elements = {
@@ -237,7 +247,15 @@ const elements = {
   schemaCode: document.querySelector("#schema-code"),
   toast: document.querySelector("#toast"),
   summaryFootnoteText: document.querySelector("#summary-footnote-text"),
-  navItems: [...document.querySelectorAll(".nav-item")]
+  navItems: [...document.querySelectorAll(".nav-item")],
+  chainFilterGroup: document.querySelector("#chain-filter-group"),
+  chainHealthRing: document.querySelector("#chain-health-ring"),
+  chainHealthCaption: document.querySelector("#chain-health-caption"),
+  chainHealthRate: document.querySelector("#chain-health-rate"),
+  chainHealthSummary: document.querySelector("#chain-health-summary"),
+  chainYearChart: document.querySelector("#chain-year-chart"),
+  chainMap: document.querySelector("#chain-map"),
+  chainInspector: document.querySelector("#chain-inspector")
 };
 
 initialize();
@@ -247,6 +265,7 @@ function initialize() {
   bindTextEvents();
   bindDialogEvents();
   bindNavigationEvents();
+  bindChainEvents();
   renderAnalysis(state.analysis);
 }
 
@@ -453,6 +472,52 @@ function bindNavigationEvents() {
   });
   window.addEventListener("resize", scheduleNavigationUpdate);
   updateActiveNavigation();
+}
+
+function bindChainEvents() {
+  elements.chainFilterGroup.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-chain-filter]");
+    if (!button) {
+      return;
+    }
+
+    state.chainFilter = button.dataset.chainFilter || "all";
+    state.selectedEvidenceId = null;
+    renderChainExplorer(state.analysis);
+  });
+
+  elements.chainYearChart.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-chain-year]");
+    if (!button) {
+      return;
+    }
+
+    const year = Number(button.dataset.chainYear);
+    state.chainYearFilter =
+      Number(state.chainYearFilter) === year ? "all" : year;
+    renderChainExplorer(state.analysis);
+  });
+
+  elements.chainMap.addEventListener("click", (event) => {
+    const node = event.target.closest("[data-evidence-id]");
+    if (!node) {
+      return;
+    }
+    selectChainEvidence(node.dataset.evidenceId);
+  });
+
+  elements.chainInspector.addEventListener("click", (event) => {
+    const clearButton = event.target.closest("[data-chain-clear]");
+    if (clearButton) {
+      clearChainSelection();
+      return;
+    }
+
+    const locateButton = event.target.closest("[data-chain-locate]");
+    if (locateButton) {
+      locateEvidenceCard(locateButton.dataset.chainLocate);
+    }
+  });
 }
 
 async function handlePdfFile(file) {
@@ -694,6 +759,9 @@ function formatPreviewText(text, query) {
 function renderAnalysis(analysis) {
   analysis = normalizeAnalysis(analysis);
   state.analysis = analysis;
+  state.chainFilter = "all";
+  state.chainYearFilter = "all";
+  state.selectedEvidenceId = null;
   const commitments = analysis.elements.filter(
     (element) => element.element_type === "commitment"
   );
@@ -709,6 +777,7 @@ function renderAnalysis(analysis) {
   renderPerformances(performances);
   renderBreakpoints(analysis.breakpoints);
   renderInsightPanel(analysis);
+  renderChainExplorer(analysis);
   updateSummary({
     commitments: commitments.length,
     actions: actions.length,
@@ -776,6 +845,444 @@ function renderInsightPanel(analysis) {
   `;
 }
 
+function renderChainExplorer(analysis) {
+  analysis = normalizeAnalysis(analysis);
+  const chains = buildEvidenceChains(analysis);
+  const commitments = analysis.elements.filter(
+    (element) => element.element_type === "commitment"
+  );
+  const completeChains = chains.filter(
+    (chain) => chain.type === "complete" && !chain.isOrphan
+  ).length;
+  const gapChains = chains.filter(
+    (chain) => chain.type !== "complete" && !chain.isOrphan
+  ).length;
+  const orphanChains = chains.filter((chain) => chain.isOrphan).length;
+  const rate =
+    commitments.length === 0
+      ? 0
+      : Math.round((completeChains / commitments.length) * 100);
+
+  state.evidenceChains = chains;
+
+  renderChainFilters(chains);
+  renderChainHealth({
+    commitments,
+    completeChains,
+    gapChains,
+    orphanChains,
+    rate
+  });
+  renderChainYears(analysis.elements);
+  renderChainMap(chains);
+
+  if (state.selectedEvidenceId) {
+    const selectedChain = findChainForEvidence(
+      chains,
+      state.selectedEvidenceId
+    );
+    if (selectedChain) {
+      renderChainInspector(selectedChain, state.selectedEvidenceId);
+      applyChainSelection(selectedChain, state.selectedEvidenceId);
+    } else {
+      clearChainSelection();
+    }
+  } else {
+    renderChainInspector(null);
+  }
+}
+
+function renderChainFilters(chains) {
+  const counts = {
+    all: chains.length,
+    complete: chains.filter((chain) => chain.type === "complete").length,
+    A: chains.filter((chain) => chain.type === "A").length,
+    B: chains.filter((chain) => chain.type === "B").length,
+    C: chains.filter((chain) => chain.type === "C").length
+  };
+
+  elements.chainFilterGroup
+    .querySelectorAll("[data-chain-filter]")
+    .forEach((button) => {
+      const filter = button.dataset.chainFilter;
+      const isActive = filter === state.chainFilter;
+      button.classList.toggle("is-active", isActive);
+      button.setAttribute("aria-pressed", String(isActive));
+      const count = button.querySelector("strong");
+      if (count) {
+        count.textContent = String(counts[filter] ?? 0);
+      }
+    });
+}
+
+function renderChainHealth({
+  commitments,
+  completeChains,
+  gapChains,
+  orphanChains,
+  rate
+}) {
+  elements.chainHealthRing.style.setProperty("--chain-rate", `${rate}`);
+  elements.chainHealthRing.innerHTML = `
+    <div class="chain-ring-center">
+      <strong>${rate}<small>%</small></strong>
+      <span>完整率</span>
+    </div>
+  `;
+  elements.chainHealthCaption.textContent = `${completeChains} / ${commitments.length}`;
+  elements.chainHealthRate.textContent = `${rate}%`;
+  elements.chainHealthSummary.textContent =
+    commitments.length === 0
+      ? "当前未形成以承诺为起点的证据链"
+      : `${completeChains} 条完整，${gapChains} 条待核，${orphanChains} 项孤立证据`;
+}
+
+function renderChainYears(allElements) {
+  const series = buildYearSeries(allElements);
+  if (series.length === 0) {
+    elements.chainYearChart.innerHTML =
+      '<div class="chain-year-empty">当前结果没有可用的报告年份</div>';
+    return;
+  }
+
+  const maxTotal = Math.max(...series.map((entry) => entry.total), 1);
+  elements.chainYearChart.innerHTML = series
+    .map((entry) => {
+      const isActive = Number(entry.year) === Number(state.chainYearFilter);
+      const height = Math.max(22, Math.round((entry.total / maxTotal) * 92));
+      return `
+        <button
+          class="chain-year-bar${isActive ? " is-active" : ""}"
+          type="button"
+          data-chain-year="${entry.year}"
+          aria-pressed="${isActive}"
+          aria-label="筛选 ${entry.year} 年，共 ${entry.total} 条证据"
+        >
+          <span class="chain-year-count">${entry.total}</span>
+          <span class="chain-year-stack" style="--bar-height:${height}px">
+            <i class="is-commitment" style="--segment-count:${entry.commitment}"></i>
+            <i class="is-action" style="--segment-count:${entry.action}"></i>
+            <i class="is-performance" style="--segment-count:${entry.performance}"></i>
+          </span>
+          <strong>${entry.year}</strong>
+          <small>C${entry.commitment} · A${entry.action} · P${entry.performance}</small>
+        </button>
+      `;
+    })
+    .join("");
+}
+
+function renderChainMap(chains) {
+  const visibleChains = filterEvidenceChains(chains, state.chainFilter);
+  if (visibleChains.length === 0) {
+    elements.chainMap.innerHTML = `
+      <div class="chain-map-empty">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <circle cx="5" cy="6" r="2"></circle>
+          <circle cx="19" cy="12" r="2"></circle>
+          <circle cx="5" cy="18" r="2"></circle>
+          <path d="M7 6h3a2 2 0 0 1 2 2v2a2 2 0 0 0 2 2h3M7 18h3a2 2 0 0 0 2-2v-2a2 2 0 0 1 2-2"></path>
+        </svg>
+        <strong>当前筛选下没有证据链</strong>
+        <p>切换到“全部”查看本轮识别出的全部承诺与孤立证据。</p>
+      </div>
+    `;
+    return;
+  }
+
+  elements.chainMap.innerHTML = visibleChains
+    .map((chain) => {
+      const actions = renderChainNodeGroup(
+        chain,
+        chain.actions,
+        "action",
+        "未检出行动"
+      );
+      const performances = renderChainNodeGroup(
+        chain,
+        chain.performances,
+        "performance",
+        "未检出绩效"
+      );
+      const commitmentNode =
+        chain.commitment &&
+        renderEvidenceNode(chain.commitment, chain, "commitment");
+      const orphanLabel = chain.isOrphan
+        ? `<div class="orphan-chain-label">${escapeHtml(chain.label)}</div>`
+        : "";
+
+      return `
+        <article class="chain-map-row chain-type-${escapeHtml(
+          chain.type.toLowerCase()
+        )}" data-chain-id="${escapeHtml(chain.id)}">
+          <div class="chain-state">
+            <span>${String(chain.index).padStart(2, "0")}</span>
+            <strong>${escapeHtml(
+              chain.type === "complete" ? "✓" : chain.type === "review" ? "?" : chain.type
+            )}</strong>
+            <small>${escapeHtml(chain.label)}</small>
+          </div>
+          <div class="chain-node-slot chain-commitment-slot">
+            ${commitmentNode || '<div class="chain-missing-node"><strong>未识别承诺</strong><small>当前证据无法归入目标</small></div>'}
+            ${orphanLabel}
+          </div>
+          <div class="chain-connector ${chain.actions.length ? "is-connected" : "is-missing"}" aria-hidden="true"></div>
+          <div class="chain-node-slot">${actions}</div>
+          <div class="chain-connector ${chain.performances.length ? "is-connected" : "is-missing"}" aria-hidden="true"></div>
+          <div class="chain-node-slot">${performances}</div>
+        </article>
+      `;
+    })
+    .join("");
+
+  applyChainYearFilter();
+  if (state.selectedEvidenceId) {
+    const selectedChain = findChainForEvidence(
+      state.evidenceChains,
+      state.selectedEvidenceId
+    );
+    if (selectedChain) {
+      applyChainSelection(selectedChain, state.selectedEvidenceId);
+    }
+  }
+}
+
+function renderChainNodeGroup(chain, nodes, type, missingLabel) {
+  if (nodes.length === 0) {
+    return `
+      <div class="chain-missing-node">
+        <strong>${escapeHtml(missingLabel)}</strong>
+        <small>${type === "action" ? "承诺后未见实施证据" : "未见对应量化结果"}</small>
+      </div>
+    `;
+  }
+
+  const visibleNodes = nodes.slice(0, 2);
+  const remaining = nodes.length - visibleNodes.length;
+  return `
+    <div class="chain-node-stack">
+      ${visibleNodes.map((node) => renderEvidenceNode(node, chain, type)).join("")}
+      ${remaining > 0 ? `<span class="chain-more">另有 ${remaining} 条关联证据</span>` : ""}
+    </div>
+  `;
+}
+
+function renderEvidenceNode(element, chain, type) {
+  const isSelected = state.selectedEvidenceId === element.id;
+  return `
+    <button
+      class="chain-evidence-node is-${escapeHtml(type)}${isSelected ? " is-selected" : ""}"
+      type="button"
+      data-evidence-id="${escapeHtml(element.id)}"
+      data-chain-id="${escapeHtml(chain.id)}"
+      aria-pressed="${isSelected}"
+      title="${escapeHtml(evidenceNodeTitle(element))}"
+    >
+      <span class="chain-node-top">
+        <strong>${escapeHtml(element.id)}</strong>
+        <small>${escapeHtml(String(element.report_year || "年份待确认"))} · p.${escapeHtml(
+          String(element.page ?? "—")
+        )}</small>
+      </span>
+      <span class="chain-node-title">${escapeHtml(evidenceNodeTitle(element))}</span>
+    </button>
+  `;
+}
+
+function evidenceNodeTitle(element) {
+  if (element.element_type === "performance") {
+    return `${element.metric || "量化绩效"} ${element.value ?? "—"}${element.unit || ""}`;
+  }
+  return element.content || element.metric || "待确认证据";
+}
+
+function applyChainYearFilter() {
+  const activeYear = Number(state.chainYearFilter);
+  const hasYearFilter = Number.isInteger(activeYear);
+
+  elements.chainMap
+    .querySelectorAll("[data-evidence-id]")
+    .forEach((node) => {
+      const element = state.analysis.elements.find(
+        (candidate) => candidate.id === node.dataset.evidenceId
+      );
+      const isOutsideYear =
+        hasYearFilter && Number(element?.report_year) !== activeYear;
+      node.classList.toggle("is-outside-year", isOutsideYear);
+    });
+}
+
+function selectChainEvidence(evidenceId) {
+  const chain = findChainForEvidence(state.evidenceChains, evidenceId);
+  if (!chain) {
+    return;
+  }
+
+  state.selectedEvidenceId = evidenceId;
+  renderChainInspector(chain, evidenceId);
+  applyChainSelection(chain, evidenceId);
+}
+
+function applyChainSelection(chain, evidenceId) {
+  elements.chainMap
+    .querySelectorAll("[data-evidence-id]")
+    .forEach((node) => {
+      const isSelected = node.dataset.evidenceId === evidenceId;
+      const isRelated = chain.elementIds.includes(node.dataset.evidenceId);
+      node.classList.toggle("is-selected", isSelected);
+      node.classList.toggle("is-context", isRelated && !isSelected);
+      node.setAttribute("aria-pressed", String(isSelected));
+    });
+
+  elements.chainMap.querySelectorAll("[data-chain-id]").forEach((row) => {
+    row.classList.toggle("is-active", row.dataset.chainId === chain.id);
+  });
+
+  document.querySelectorAll(".evidence-section [data-evidence-id]").forEach(
+    (card) => {
+      const isSelected = card.dataset.evidenceId === evidenceId;
+      const isRelated = chain.elementIds.includes(card.dataset.evidenceId);
+      card.classList.toggle("is-evidence-selected", isSelected);
+      card.classList.toggle("is-evidence-related", isRelated && !isSelected);
+    }
+  );
+}
+
+function clearChainSelection() {
+  state.selectedEvidenceId = null;
+  renderChainInspector(null);
+  elements.chainMap
+    .querySelectorAll("[data-evidence-id]")
+    .forEach((node) => {
+      node.classList.remove("is-selected", "is-context");
+      node.setAttribute("aria-pressed", "false");
+    });
+  elements.chainMap
+    .querySelectorAll("[data-chain-id]")
+    .forEach((row) => row.classList.remove("is-active"));
+  document
+    .querySelectorAll(
+      ".evidence-section .is-evidence-selected, .evidence-section .is-evidence-related"
+    )
+    .forEach((card) => {
+      card.classList.remove("is-evidence-selected", "is-evidence-related");
+    });
+}
+
+function renderChainInspector(chain, evidenceId = null) {
+  if (!chain || !evidenceId) {
+    elements.chainInspector.innerHTML = `
+      <div class="chain-inspector-empty">
+        <span class="inspector-icon">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <circle cx="5" cy="6" r="2"></circle>
+            <circle cx="19" cy="12" r="2"></circle>
+            <circle cx="5" cy="18" r="2"></circle>
+            <path d="M7 6h3a2 2 0 0 1 2 2v2a2 2 0 0 0 2 2h3M7 18h3a2 2 0 0 0 2-2v-2a2 2 0 0 1 2-2"></path>
+          </svg>
+        </span>
+        <h3>选择图谱节点</h3>
+        <p>查看原文、年份、页码和同链路证据，并联动高亮下方卡片。</p>
+      </div>
+    `;
+    return;
+  }
+
+  const element = chain.elements.find((item) => item.id === evidenceId);
+  if (!element) {
+    return;
+  }
+  const typeLabels = {
+    commitment: "气候承诺",
+    action: "落地行动",
+    performance: "量化绩效"
+  };
+  const relatedEvidences = chain.elementIds.filter((id) => id !== evidenceId);
+  const chainStatusText =
+    chain.type === "complete"
+      ? "完整证据链"
+      : chain.type === "review"
+        ? "待人工复核"
+        : `${chain.type} · ${chain.label}`;
+
+  elements.chainInspector.innerHTML = `
+    <div class="inspector-selected">
+      <div class="inspector-top">
+        <span class="inspector-kicker">SELECTED EVIDENCE</span>
+        <button class="inspector-close" type="button" data-chain-clear aria-label="清除图谱选择">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="m6 6 12 12M18 6 6 18"></path>
+          </svg>
+        </button>
+      </div>
+      <div class="inspector-type">
+        <span>${escapeHtml(element.id)}</span>
+        ${escapeHtml(typeLabels[element.element_type] || "证据")}
+      </div>
+      <h3>${escapeHtml(evidenceNodeTitle(element))}</h3>
+      <blockquote>“${escapeHtml(element.source_quote || element.content || evidenceNodeTitle(element))}”</blockquote>
+      <dl class="inspector-meta">
+        <div><dt>报告年份</dt><dd>${escapeHtml(String(element.report_year || "待确认"))}</dd></div>
+        <div><dt>原文页码</dt><dd>p.${escapeHtml(String(element.page ?? "—"))}</dd></div>
+        <div><dt>复核状态</dt><dd>${escapeHtml(element.review_status || "待核")}</dd></div>
+        <div><dt>链路判定</dt><dd>${escapeHtml(chainStatusText)}</dd></div>
+      </dl>
+      ${
+        relatedEvidences.length > 0
+          ? `
+            <div class="inspector-related">
+              <small>同链路证据</small>
+              <div>${relatedEvidences
+                .map((id) => `<span>${escapeHtml(id)}</span>`)
+                .join("")}</div>
+            </div>
+          `
+          : ""
+      }
+      ${
+        chain.breakpoints.length > 0
+          ? `
+            <div class="inspector-gaps">
+              <small>关联断点</small>
+              ${chain.breakpoints
+                .map(
+                  (breakpoint) => `
+                    <p><strong>${escapeHtml(breakpoint.type)} · ${escapeHtml(
+                      breakpoint.id
+                    )}</strong>${escapeHtml(breakpoint.title)}</p>
+                  `
+                )
+                .join("")}
+            </div>
+          `
+          : ""
+      }
+      <button class="inspector-locate" type="button" data-chain-locate="${escapeHtml(
+        evidenceId
+      )}">
+        定位到展示区
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M5 12h14M14 7l5 5-5 5"></path>
+        </svg>
+      </button>
+    </div>
+  `;
+}
+
+function locateEvidenceCard(evidenceId) {
+  const card = [...document.querySelectorAll(
+    ".evidence-section [data-evidence-id]"
+  )].find((candidate) => candidate.dataset.evidenceId === evidenceId);
+  if (!card) {
+    showToast("展示区没有找到对应证据");
+    return;
+  }
+
+  card.scrollIntoView({ behavior: "smooth", block: "center" });
+  card.classList.add("is-located");
+  window.setTimeout(() => card.classList.remove("is-located"), 1800);
+}
+
 function renderCommitments(commitments) {
   if (commitments.length === 0) {
     elements.commitmentList.innerHTML = emptyState(
@@ -795,7 +1302,9 @@ function renderCommitments(commitments) {
         performancePresent && commitment.chain_status === "complete";
 
       return `
-        <article class="commitment-card${hasBreakpoint ? " has-breakpoint" : ""}">
+        <article class="commitment-card${hasBreakpoint ? " has-breakpoint" : ""}" data-evidence-id="${escapeHtml(
+          commitment.id
+        )}">
           <div class="commitment-top">
             <span class="element-id">${escapeHtml(commitment.id)}</span>
             <span class="status-pill ${status.className}">${escapeHtml(
@@ -865,7 +1374,7 @@ function renderActions(actions) {
     .map((action) => {
       const hasDirectResult = action.action_result_status === "direct";
       return `
-        <article class="action-card">
+        <article class="action-card" data-evidence-id="${escapeHtml(action.id)}">
           <div class="action-year">${escapeHtml(String(action.report_year))}</div>
           <div class="action-main">
             <div class="action-top">
@@ -903,7 +1412,9 @@ function renderPerformances(performances) {
     .map((performance) => {
       const hasAction = Boolean(performance.action_id);
       return `
-        <article class="performance-card">
+        <article class="performance-card" data-evidence-id="${escapeHtml(
+          performance.id
+        )}">
           <div class="performance-top">
             <span class="element-id">${escapeHtml(performance.id)}</span>
             <span class="status-pill ${
@@ -989,6 +1500,7 @@ function clearElementSections(title, description) {
     "文本抽取质量确认后，按固定输出协议接入模型，再生成断点候选。"
   );
   setSectionCounts(0, 0, 0);
+  renderChainExplorer({ elements: [], breakpoints: [] });
 }
 
 function updateSummary(counts) {
