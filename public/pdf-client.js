@@ -1,3 +1,5 @@
+import { reconstructTextLines } from "./text-layout.js";
+
 const pdfjsLib = window.pdfjsLib;
 
 if (!pdfjsLib) {
@@ -25,9 +27,9 @@ export async function extractPdfInBrowser(file) {
     for (let pageNumber = 1; pageNumber <= document.numPages; pageNumber += 1) {
       const page = await document.getPage(pageNumber);
       const content = await page.getTextContent();
-      const lines = reconstructLines(content.items);
-      textItemCount += content.items.length;
       const viewport = page.getViewport({ scale: 1 });
+      const lines = reconstructTextLines(content.items, viewport.width);
+      textItemCount += content.items.length;
       pages.push({
         page_number: pageNumber,
         text: lines.join("\n").trim(),
@@ -78,95 +80,6 @@ export async function extractPdfInBrowser(file) {
   } finally {
     await loadingTask.destroy();
   }
-}
-
-function reconstructLines(items) {
-  const itemLines = [];
-
-  for (const item of items) {
-    if (typeof item.str !== "string" || !item.transform) {
-      continue;
-    }
-
-    const x = item.transform[4];
-    const y = item.transform[5];
-    const fontSize = Math.hypot(item.transform[2], item.transform[3]) || 10;
-    let line = itemLines.find((candidate) => Math.abs(candidate.y - y) < 2.5);
-
-    if (!line) {
-      line = { y, items: [] };
-      itemLines.push(line);
-    }
-
-    line.items.push({
-      x,
-      width: Number(item.width) || 0,
-      text: item.str,
-      fontSize
-    });
-  }
-
-  const lines = itemLines
-    .sort((first, second) => second.y - first.y)
-    .map((line) => joinLineItems(line.items))
-    .map((line) => normalizeInlineSpacing(line))
-    .filter(Boolean);
-
-  const mergedLines = [];
-  for (const line of lines) {
-    const previousIndex = mergedLines.length - 1;
-    const isStandalonePunctuation =
-      /^[，。；：、！？）】》]+$/.test(line) && previousIndex >= 0;
-
-    if (isStandalonePunctuation) {
-      mergedLines[previousIndex] += line;
-    } else {
-      mergedLines.push(line);
-    }
-  }
-
-  return mergedLines;
-}
-
-function joinLineItems(items) {
-  const sorted = [...items].sort((first, second) => first.x - second.x);
-  let output = "";
-  let endX = null;
-  let previousCharacter = "";
-  let lastFontSize = 10;
-
-  for (const item of sorted) {
-    const firstCharacter = item.text.trim().charAt(0);
-    const gap = endX === null ? 0 : item.x - endX;
-    const looksLikeWordGap =
-      gap > Math.max(2.5, Math.min(lastFontSize * 0.55, 7)) &&
-      /[A-Za-z0-9]$/.test(previousCharacter) &&
-      /^[A-Za-z0-9(]/.test(firstCharacter);
-
-    if (output && looksLikeWordGap) {
-      output += " ";
-    }
-
-    output += item.text;
-    endX = item.x + item.width;
-    const visibleCharacters = item.text.replace(/\s/g, "");
-    if (visibleCharacters) {
-      previousCharacter = visibleCharacters.at(-1);
-    }
-    lastFontSize = item.fontSize;
-  }
-
-  return output;
-}
-
-function normalizeInlineSpacing(line) {
-  return line
-    .replace(/\u0000/g, "")
-    .replace(/\u00a0/g, " ")
-    .replace(/[ \t]{2,}/g, " ")
-    .replace(/\s+([，。；：、！？）】》])/g, "$1")
-    .replace(/([（【《])\s+/g, "$1")
-    .trim();
 }
 
 function cleanPages(pages) {

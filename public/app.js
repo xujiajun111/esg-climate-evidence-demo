@@ -200,7 +200,9 @@ const state = {
   evidenceChains: [],
   chainFilter: "all",
   chainYearFilter: "all",
-  selectedEvidenceId: null
+  selectedEvidenceId: null,
+  showAllActions: false,
+  showAllPerformances: false
 };
 
 const elements = {
@@ -266,6 +268,7 @@ function initialize() {
   bindDialogEvents();
   bindNavigationEvents();
   bindChainEvents();
+  bindListEvents();
   renderAnalysis(state.analysis);
 }
 
@@ -520,6 +523,32 @@ function bindChainEvents() {
   });
 }
 
+function bindListEvents() {
+  elements.actionList.addEventListener("click", (event) => {
+    if (!event.target.closest('[data-list-toggle="actions"]')) {
+      return;
+    }
+    state.showAllActions = !state.showAllActions;
+    renderActions(
+      state.analysis.elements.filter(
+        (element) => element.element_type === "action"
+      )
+    );
+  });
+
+  elements.performanceList.addEventListener("click", (event) => {
+    if (!event.target.closest('[data-list-toggle="performances"]')) {
+      return;
+    }
+    state.showAllPerformances = !state.showAllPerformances;
+    renderPerformances(
+      state.analysis.elements.filter(
+        (element) => element.element_type === "performance"
+      )
+    );
+  });
+}
+
 async function handlePdfFile(file) {
   if (state.isUploading) {
     showToast("当前已有文件正在处理");
@@ -623,7 +652,9 @@ function commitExtraction(payload) {
     elements.dataModeBadge.textContent = "规则分析";
     elements.analysisStatusLabel.textContent = "分析完成 · 已生成证据链";
     elements.progressMessage.textContent =
-      `已抽取 ${payload.stats.page_count} 页并生成规则分析：${counts.commitments} 条承诺、${counts.actions} 条行动、${counts.performances} 项绩效。`;
+      counts.commitments === 0
+        ? `已抽取 ${payload.stats.page_count} 页：未识别到“量化指标 + 截止年份”的有效承诺；另检出 ${counts.actions} 条行动和 ${counts.performances} 项绩效候选。该结果不能解释为企业没有目标，需人工复核。`
+        : `已抽取 ${payload.stats.page_count} 页并生成规则分析：${counts.commitments} 条承诺、${counts.actions} 条行动、${counts.performances} 项绩效。`;
     setProgressStep("recognize", "complete");
     renderAnalysis(analysis);
     showToast(
@@ -762,6 +793,8 @@ function renderAnalysis(analysis) {
   state.chainFilter = "all";
   state.chainYearFilter = "all";
   state.selectedEvidenceId = null;
+  state.showAllActions = false;
+  state.showAllPerformances = false;
   const commitments = analysis.elements.filter(
     (element) => element.element_type === "commitment"
   );
@@ -1370,7 +1403,8 @@ function renderActions(actions) {
     return;
   }
 
-  elements.actionList.innerHTML = actions
+  const visibleActions = state.showAllActions ? actions : actions.slice(0, 10);
+  const actionCards = visibleActions
     .map((action) => {
       const hasDirectResult = action.action_result_status === "direct";
       return `
@@ -1397,6 +1431,10 @@ function renderActions(actions) {
       `;
     })
     .join("");
+
+  elements.actionList.innerHTML =
+    actionCards +
+    (actions.length > 10 ? listToggle(actions.length, "actions") : "");
 }
 
 function renderPerformances(performances) {
@@ -1408,7 +1446,10 @@ function renderPerformances(performances) {
     return;
   }
 
-  elements.performanceList.innerHTML = performances
+  const visiblePerformances = state.showAllPerformances
+    ? performances
+    : performances.slice(0, 6);
+  const performanceCards = visiblePerformances
     .map((performance) => {
       const hasAction = Boolean(performance.action_id);
       return `
@@ -1441,6 +1482,12 @@ function renderPerformances(performances) {
       `;
     })
     .join("");
+
+  elements.performanceList.innerHTML =
+    performanceCards +
+    (performances.length > 6
+      ? listToggle(performances.length, "performances")
+      : "");
 }
 
 function renderBreakpoints(breakpoints) {
@@ -1596,6 +1643,31 @@ function emptyState(title, description) {
       </svg>
       <strong>${escapeHtml(title)}</strong>
       <p>${escapeHtml(description)}</p>
+    </div>
+  `;
+}
+
+function listToggle(total, type) {
+  const isActions = type === "actions";
+  const expanded = isActions
+    ? state.showAllActions
+    : state.showAllPerformances;
+  const noun = isActions ? "行动" : "绩效";
+  const visibleCount = isActions ? 10 : 6;
+
+  return `
+    <div class="list-expand-row">
+      <button
+        class="list-expand-button"
+        type="button"
+        data-list-toggle="${type}"
+        aria-expanded="${expanded}"
+      >
+        ${expanded ? `收起，仅显示 ${visibleCount} 条` : `显示全部 ${total} 条${noun}`}
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="${expanded ? "m6 15 6-6 6 6" : "m6 9 6 6 6-6"}"></path>
+        </svg>
+      </button>
     </div>
   `;
 }

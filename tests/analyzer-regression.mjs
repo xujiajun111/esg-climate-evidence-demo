@@ -137,6 +137,76 @@ const cases = [
       breakpoints: ["C"]
     },
     forbiddenPerformanceValue: 2024
+  },
+  {
+    name: "目录导航不得识别为行动",
+    fileName: "某企业-2024可持续发展报告.pdf",
+    text: [
+      "某企业2024可持续发展报告",
+      "报告编制说明 高管致辞 公司基本信息 议题重要性评估 公司可持续发展治理安排 高质量发展专题 环境篇 社会篇 治理篇 附录"
+    ].join("\n"),
+    expected: {
+      commitment: 0,
+      action: 0,
+      performance: 0,
+      breakpoints: []
+    }
+  },
+  {
+    name: "气候风险情景不得识别为行动",
+    fileName: "某企业-2024可持续发展报告.pdf",
+    text: [
+      "某企业2024可持续发展报告",
+      "政府可能更新建筑法规和工程建设标准，提出更高能效要求，可能影响项目开发成本和运营安排。"
+    ].join("\n"),
+    expected: {
+      commitment: 0,
+      action: 0,
+      performance: 0,
+      breakpoints: []
+    }
+  },
+  {
+    name: "技术表格片段不得识别为行动",
+    fileName: "某企业-2024可持续发展报告.pdf",
+    text: [
+      "某企业2024可持续发展报告",
+      "技术类型：工艺工法 技术特点：采用节能灯具 管理优化：分区域责任制"
+    ].join("\n"),
+    expected: {
+      commitment: 0,
+      action: 0,
+      performance: 0,
+      breakpoints: []
+    }
+  },
+  {
+    name: "上一年度报告中的次年目标识别为承诺",
+    fileName: "某企业-2024可持续发展报告.pdf",
+    text: [
+      "某企业2024可持续发展报告",
+      "公司承诺到2025年使单位营收碳排放较2023年下降10%。"
+    ].join("\n"),
+    expected: {
+      commitment: 1,
+      action: 0,
+      performance: 0,
+      breakpoints: ["A"]
+    }
+  },
+  {
+    name: "外部政策目标不得识别为企业承诺",
+    fileName: "某企业-2024可持续发展报告.pdf",
+    text: [
+      "某企业2024可持续发展报告",
+      "根据住房和城乡建设部《“十四五”建筑节能与绿色建筑发展规划》的总体目标：到2025年，城镇新建建筑全面建成绿色建筑，建筑能耗和碳排放增长趋势得到有效控制。"
+    ].join("\n"),
+    expected: {
+      commitment: 0,
+      action: 0,
+      performance: 0,
+      breakpoints: []
+    }
   }
 ];
 

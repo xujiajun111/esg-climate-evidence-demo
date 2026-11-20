@@ -78,25 +78,37 @@ export function buildEvidenceChains(analysis = {}) {
   const orphanedElements = elements.filter(
     (element) => !usedElementIds.has(element.id)
   );
+  const orphanedActions = orphanedElements.filter(
+    (element) => element.element_type === "action"
+  );
+  const orphanedPerformances = orphanedElements.filter(
+    (element) => element.element_type === "performance"
+  );
+  const orphanedCommitments = orphanedElements.filter(
+    (element) => element.element_type === "commitment"
+  );
 
-  for (const element of orphanedElements) {
-    const type = element.element_type === "performance" ? "C" : "review";
-    chains.push({
-      id: `orphan-${element.id}`,
-      index: chains.length + 1,
-      type,
-      label: element.element_type === "performance" ? "孤立绩效" : "无归属证据",
-      commitment: element.element_type === "commitment" ? element : null,
-      actions: element.element_type === "action" ? [element] : [],
-      performances: element.element_type === "performance" ? [element] : [],
-      breakpoints: breakpoints.filter((breakpoint) =>
-        (breakpoint.evidence_ids || []).includes(element.id)
-      ),
-      elements: [element],
-      elementIds: [element.id],
-      isOrphan: true
-    });
-  }
+  appendOrphanGroup({
+    chains,
+    elements: orphanedCommitments,
+    type: "review",
+    label: "未入链承诺",
+    kind: "commitment"
+  });
+  appendOrphanGroup({
+    chains,
+    elements: orphanedActions,
+    type: "B",
+    label: "行动未入承诺链",
+    kind: "action"
+  });
+  appendOrphanGroup({
+    chains,
+    elements: orphanedPerformances,
+    type: "C",
+    label: "孤立绩效",
+    kind: "performance"
+  });
 
   return chains;
 }
@@ -189,4 +201,28 @@ function resolveChainType(commitment, actions, performances) {
 
 function uniqueById(items) {
   return [...new Map(items.map((item) => [item.id, item])).values()];
+}
+
+function appendOrphanGroup({ chains, elements, type, label, kind }) {
+  if (elements.length === 0) {
+    return;
+  }
+
+  const groupId =
+    elements.length === 1
+      ? `orphan-${elements[0].id}`
+      : `orphan-${kind}s`;
+  chains.push({
+    id: groupId,
+    index: chains.length + 1,
+    type,
+    label,
+    commitment: kind === "commitment" ? elements[0] : null,
+    actions: kind === "action" ? elements : [],
+    performances: kind === "performance" ? elements : [],
+    breakpoints: [],
+    elements,
+    elementIds: elements.map((element) => element.id),
+    isOrphan: true
+  });
 }

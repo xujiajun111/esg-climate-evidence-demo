@@ -89,6 +89,117 @@ const PERFORMANCE_TERMS = [
   "累计"
 ];
 
+const MITIGATION_OBJECT_TERMS = [
+  "碳减排",
+  "减排",
+  "节能",
+  "能效",
+  "碳排放",
+  "温室气体",
+  "二氧化碳",
+  "绿电",
+  "绿证",
+  "清洁能源",
+  "可再生能源",
+  "光伏",
+  "风电",
+  "余热",
+  "余压",
+  "碳台账",
+  "碳盘查",
+  "碳核查",
+  "碳管理",
+  "CCUS",
+  "超低能耗",
+  "绿色建筑",
+  "绿色施工",
+  "能源管理",
+  "低碳供应链",
+  "低碳技术",
+  "节能设备",
+  "耗能",
+  "能耗"
+];
+
+const SPECIFIC_MITIGATION_TERMS = [
+  "余热",
+  "余压",
+  "光伏",
+  "风电",
+  "绿电",
+  "绿证",
+  "清洁能源",
+  "可再生能源",
+  "碳台账",
+  "碳盘查",
+  "碳核查",
+  "碳管理",
+  "CCUS",
+  "节能改造",
+  "节能设备",
+  "能耗诊断",
+  "能源管理平台",
+  "超低能耗",
+  "绿色建筑",
+  "绿色施工",
+  "低碳材料",
+  "低碳技术",
+  "低碳供应链",
+  "装配式",
+  "能效",
+  "耗能",
+  "能耗"
+];
+
+const CONCRETE_ACTION_TERMS = [
+  "完成",
+  "实施",
+  "建设",
+  "建成",
+  "投运",
+  "并网",
+  "改造",
+  "技改",
+  "安装",
+  "加装",
+  "上线",
+  "部署",
+  "采购",
+  "直购",
+  "签约",
+  "建立",
+  "制定",
+  "开展",
+  "组织",
+  "推行",
+  "采用",
+  "应用",
+  "淘汰",
+  "替换",
+  "回收",
+  "利用",
+  "优化",
+  "运营",
+  "认证",
+  "核查",
+  "盘查",
+  "诊断",
+  "培训"
+];
+
+const NAVIGATION_TERMS = [
+  "报告编制说明",
+  "高管致辞",
+  "公司基本信息",
+  "议题重要性评估",
+  "公司可持续发展治理安排",
+  "高质量发展专题",
+  "环境篇",
+  "社会篇",
+  "治理篇",
+  "附录"
+];
+
 const FUTURE_TERMS = [
   "计划",
   "拟",
@@ -220,7 +331,7 @@ export function analyzeDocument(extraction, options = {}) {
     breakpoints,
     analysis_meta: {
       model_name: "本地规则分析器",
-      model_version: "0.2",
+      model_version: "0.3",
       prompt_version: "not_applicable",
       generated_at: new Date().toISOString(),
       human_review_required: true
@@ -278,8 +389,8 @@ function mergeWrappedLines(lines) {
     if (
       previous &&
       !isHeading &&
-      previous.length <= 80 &&
-      !/[。！？；]$/.test(previous)
+      previous.length <= 120 &&
+      !/[。！？]$/.test(previous)
     ) {
       paragraphs[paragraphs.length - 1] = `${previous}${line}`;
     } else if (!isHeading) {
@@ -291,32 +402,51 @@ function mergeWrappedLines(lines) {
 
 function classifySentence(text, fallbackYear) {
   const compact = text.replace(/\s+/g, "");
+  if (
+    /(?:在不|在|于|和|与|及|的|为|对|将|把|从|向|通过|并|且|或|包括|其中)$/.test(
+      compact
+    )
+  ) {
+    return null;
+  }
   const years = [...compact.matchAll(/20\d{2}/g)].map((match) =>
     Number(match[0])
   );
-  const currentYear = new Date().getFullYear();
-  const futureYears = years.filter((year) => year >= currentYear);
+  const referenceYear = Number.isInteger(fallbackYear)
+    ? fallbackYear
+    : new Date().getFullYear();
+  const futureYears = years.filter((year) => year > referenceYear);
   const hasFutureSignal = FUTURE_TERMS.some((term) => compact.includes(term));
-  const hasActionSignal = ACTION_TERMS.some((term) => compact.includes(term));
   const hasPerformanceSignal = PERFORMANCE_TERMS.some((term) =>
     compact.includes(term)
   );
+  const hasStrongPerformanceSignal =
+    /(本期|本年度|报告期内|截至|同比|较上年|较去年|相较于|下降|降低|上升|提升|提高|达到|实现|录得|累计)/.test(
+      compact
+    );
   const measurement = inferMeasurement(compact);
   const hasNumber = Boolean(measurement);
+  const actionAssessment = assessMitigationAction(compact, measurement);
   const hasActionPotential =
-    hasActionSignal &&
+    actionAssessment.accepted &&
     !/(计划|拟|将于|将在|预计|即将|力争|目标(?:是|为)?)/.test(compact) &&
     !/^(到20|在20)/.test(compact);
   const hasPerformancePotential =
     hasPerformanceSignal &&
+    hasStrongPerformanceSignal &&
     hasNumber &&
-    !futureYears.some((year) => year > currentYear) &&
+    futureYears.length === 0 &&
+    !isNavigationNoise(compact) &&
+    !isLikelyTableNoise(compact) &&
     !/(承诺|计划|目标|将|拟|预计).*(下降|降低|提升|提高|达到|实现)/.test(
       compact
     );
 
   const isCommitment =
     futureYears.length > 0 &&
+    !isNavigationNoise(compact) &&
+    !isLikelyTableNoise(compact) &&
+    !isExternalPolicyStatement(compact) &&
     (hasNumber || /碳中和|碳达峰|净零/.test(compact)) &&
     (hasFutureSignal || /年.*(?:实现|达到|降至|下降|提升至|占比)/.test(compact));
 
@@ -361,12 +491,127 @@ function classifySentence(text, fallbackYear) {
       element_type: "action",
       content: text,
       report_year: inferSentenceReportYear(compact, null, fallbackYear),
-      confidence: 0.76,
-      notes: "由规则识别的已实施措施，需人工确认是否真实落地及所属承诺。"
+      confidence: actionAssessment.confidence,
+      notes:
+        actionAssessment.specific
+          ? "由规则识别的具体减排措施，需人工确认是否真实落地及所属承诺。"
+          : "由规则识别的已实施措施，证据强度一般，需人工确认是否属于减排行动。"
     };
   }
 
   return null;
+}
+
+function assessMitigationAction(text, measurement) {
+  if (
+    /^(?:方米|平方米|吨|万吨|万千瓦时|千瓦时|[%％])/.test(text) ||
+    (/(可能|有望|如果|若|趋势|风险|机遇)/.test(text) &&
+      !/(完成|实施|建成|投运|已|报告期内|本年度)/.test(text))
+  ) {
+    return {
+      accepted: false,
+      confidence: 0,
+      specific: false
+    };
+  }
+
+  const hasSpecificObject = SPECIFIC_MITIGATION_TERMS.some((term) =>
+    text.includes(term)
+  );
+  const hasConcretePair = hasConcreteMitigationAction(text);
+  const hasImplementationMarker =
+    /(已|报告期内|本年度|全年|累计|完成|实施|建成|投运|并网|改造|技改|安装|加装|上线|部署|采购|直购|签约|建立|制定|开展|组织|推行|采用|应用|淘汰|替换|取得|认证|核查|盘查|诊断|培训)/.test(
+      text
+    );
+  const hasExecutionPhrase =
+    /(通过|采用|建立|上线|完成|实施|开展|组织|推行|应用|取得)/.test(text);
+
+  let confidence = 0.58;
+  if (hasSpecificObject) {
+    confidence += 0.12;
+  }
+  if (hasImplementationMarker) {
+    confidence += 0.08;
+  }
+  if (measurement) {
+    confidence += 0.05;
+  }
+  if (hasExecutionPhrase) {
+    confidence += 0.04;
+  }
+  if (!hasSpecificObject) {
+    confidence -= 0.04;
+  }
+  if (text.length > 200) {
+    confidence -= 0.05;
+  }
+
+  confidence = Math.max(0, Math.min(0.92, confidence));
+  return {
+    accepted: hasConcretePair && confidence >= 0.77,
+    confidence: Math.round(confidence * 100) / 100,
+    specific: hasSpecificObject
+  };
+}
+
+function hasConcreteMitigationAction(text) {
+  if (
+    isNavigationNoise(text) ||
+    isLikelyTableNoise(text) ||
+    !MITIGATION_OBJECT_TERMS.some((term) => text.includes(term))
+  ) {
+    return false;
+  }
+
+  const actionGroup = CONCRETE_ACTION_TERMS.join("|");
+  const objectGroup = MITIGATION_OBJECT_TERMS.join("|");
+  const forward = new RegExp(
+    `(?:${actionGroup})[^。！？]{0,45}(?:${objectGroup})`
+  );
+  const reverse = new RegExp(
+    `(?:${objectGroup})[^。！？]{0,45}(?:${actionGroup})`
+  );
+
+  return forward.test(text) || reverse.test(text);
+}
+
+function isNavigationNoise(text) {
+  const navigationHits = NAVIGATION_TERMS.filter((term) =>
+    text.includes(term)
+  ).length;
+  return (
+    navigationHits >= 3 ||
+    /报告编制说明.{0,8}高管致辞|环境篇.{0,8}社会篇.{0,8}治理篇/.test(text)
+  );
+}
+
+function isLikelyTableNoise(text) {
+  const colonCount = (text.match(/[：:]/g) || []).length;
+  const tableLabelHits = (
+    text.match(
+      /技术类型|技术特点|管理优化|质量提升|成本降低|安全优势|指标名称|单位/g
+    ) || []
+  ).length;
+  return (
+    (colonCount >= 3 && tableLabelHits >= 2) ||
+    (text.length > 220 && colonCount >= 4) ||
+    (/指标名称/.test(text) && /(2023|2024|2025)/.test(text))
+  );
+}
+
+function isExternalPolicyStatement(text) {
+  const citesPolicyTarget =
+    /(根据|按照).{0,35}(规划|政策|标准|要求).{0,55}(总体目标|目标|到20)/.test(
+      text
+    ) ||
+    /《[^》]{2,60}(?:规划|方案|意见|办法)》.{0,55}(总体目标|目标|到20)/.test(
+      text
+    );
+  const citesAuthority =
+    /(住房和城乡建设部|国务院|国家发展改革委|生态环境部|国家能源局|工业和信息化部)/.test(
+      text
+    );
+  return citesPolicyTarget && citesAuthority;
 }
 
 function linkElements(commitments, actions, performances, multiDocument) {
@@ -529,38 +774,70 @@ function buildBreakpoints(commitments, actions, performances, multiDocument) {
     }
   }
 
-  for (const performance of performances.filter(
+  const orphanPerformances = performances.filter(
     (item) => !item.commitment_id && !item.action_id
-  )) {
+  );
+  if (orphanPerformances.length > 3) {
     breakpoints.push({
       id: `BP-${String(index).padStart(3, "0")}`,
       type: "C",
       commitment_id: null,
-      title: "有绩效，但全文未见支撑行动",
+      title: `${orphanPerformances.length} 项绩效未进入可追溯行动链`,
       reason:
-        "识别到量化气候绩效，但未能关联到有效承诺或已实施行动，建议核查报告其他章节。",
-      missing_evidence: ["对应行动"],
-      evidence_ids: [performance.id],
+        "识别到多项量化气候绩效，但当前报告未形成能够关联承诺与行动的有效证据链。建议按页码抽查统计口径和支撑项目。",
+      missing_evidence: ["对应承诺", "对应行动"],
+      evidence_ids: orphanPerformances.map((performance) => performance.id),
       review_status: "待核"
     });
     index += 1;
+  } else {
+    for (const performance of orphanPerformances) {
+      breakpoints.push({
+        id: `BP-${String(index).padStart(3, "0")}`,
+        type: "C",
+        commitment_id: null,
+        title: "有绩效，但全文未见支撑行动",
+        reason:
+          "识别到量化气候绩效，但未能关联到有效承诺或已实施行动，建议核查报告其他章节。",
+        missing_evidence: ["对应行动"],
+        evidence_ids: [performance.id],
+        review_status: "待核"
+      });
+      index += 1;
+    }
   }
 
-  for (const action of actions.filter(
+  const orphanActions = actions.filter(
     (item) => !item.commitment_id && item.linked_performances.length === 0
-  )) {
+  );
+  if (orphanActions.length > 5) {
     breakpoints.push({
       id: `BP-${String(index).padStart(3, "0")}`,
       type: "B",
       commitment_id: null,
-      title: "有行动，但未披露行动级量化绩效",
+      title: `${orphanActions.length} 条行动未关联承诺或行动级绩效`,
       reason:
-        "识别到已实施的减排行动，但未找到与该行动直接对应的减排量、节能量或绿电增量。",
-      missing_evidence: ["行动级量化结果"],
-      evidence_ids: [action.id],
+        "识别到多项已实施减排措施，但当前文本未能建立“承诺—行动—量化结果”的完整对应关系。建议按证据页码逐条复核，而不是将数量直接视为企业问题数量。",
+      missing_evidence: ["对应承诺", "行动级量化结果"],
+      evidence_ids: orphanActions.map((action) => action.id),
       review_status: "待核"
     });
     index += 1;
+  } else {
+    for (const action of orphanActions) {
+      breakpoints.push({
+        id: `BP-${String(index).padStart(3, "0")}`,
+        type: "B",
+        commitment_id: null,
+        title: "有行动，但未披露行动级量化绩效",
+        reason:
+          "识别到已实施的减排行动，但未找到与该行动直接对应的减排量、节能量或绿电增量。",
+        missing_evidence: ["行动级量化结果"],
+        evidence_ids: [action.id],
+        review_status: "待核"
+      });
+      index += 1;
+    }
   }
 
   return breakpoints;

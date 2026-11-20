@@ -10,7 +10,8 @@
     "build:static": "node scripts/build-static.mjs",
     "test:analyzer": "node tests/analyzer-regression.mjs",
     "test:chain": "node tests/chain-model-regression.mjs",
-    "test": "npm run test:analyzer && npm run test:chain"
+    "test:layout": "node tests/text-layout-regression.mjs",
+    "test": "npm run test:analyzer && npm run test:chain && npm run test:layout"
   },
   "engines": {
     "node": ">=20"
