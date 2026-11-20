@@ -236,36 +236,81 @@ const METRIC_RULES = [
 ];
 
 export function analyzeDocument(extraction, options = {}) {
-  const sentences = collectSentences(extraction.pages || []);
-  const reportYear = inferReportYear(
-    extraction.file?.name,
-    extraction.extracted_text || ""
+  return analyzeExtractions([extraction], {
+    ...options,
+    multi_document: Boolean(options.multi_document)
+  });
+}
+
+export function analyzeDocuments(extractions, options = {}) {
+  return analyzeExtractions(extractions, {
+    ...options,
+    multi_document: extractions.length > 1
+  });
+}
+
+function analyzeExtractions(extractions, options = {}) {
+  const documents = extractions.map((extraction, index) => {
+    const reportYear = inferReportYear(
+      extraction.file?.name,
+      extraction.extracted_text || ""
+    );
+    const documentName =
+      extraction.file?.name || `上传报告 ${String(index + 1).padStart(2, "0")}`;
+    const sentences = collectSentences(extraction.pages || []).map(
+      (sentence) => ({
+        ...sentence,
+        document_index: index,
+        document_name: documentName,
+        report_year: reportYear
+      })
+    );
+
+    return {
+      index,
+      name: documentName,
+      report_year: reportYear,
+      extraction,
+      sentences
+    };
+  });
+  const sentences = documents.flatMap((document) => document.sentences);
+  const companyName = inferCompanyName(
+    sentences,
+    documents.map((document) => document.name).join(" ")
   );
-  const companyName = inferCompanyName(sentences, extraction.file?.name);
   const elements = [];
   const warnings = [];
 
   for (const sentence of sentences) {
-    const result = classifySentence(sentence.text, reportYear);
+    const result = classifySentence(sentence.text, sentence.report_year);
     if (!result) {
       continue;
     }
 
     elements.push({
       ...result,
-      report_year: result.report_year || reportYear,
+      report_year: sentence.report_year,
       page: sentence.page,
       source_quote: sentence.text,
+      source_document: {
+        index: sentence.document_index,
+        name: sentence.document_name,
+        report_year: sentence.report_year
+      },
       review_status: result.confidence >= 0.82 ? "待核" : "存疑",
       notes: result.notes || ""
     });
   }
 
-  const commitments = elements.filter(
+  const dedupedElements = dedupeElements(elements, Boolean(options.multi_document));
+  const commitments = dedupedElements.filter(
     (element) => element.element_type === "commitment"
   );
-  const actions = elements.filter((element) => element.element_type === "action");
-  const performances = elements.filter(
+  const actions = dedupedElements.filter(
+    (element) => element.element_type === "action"
+  );
+  const performances = dedupedElements.filter(
     (element) => element.element_type === "performance"
   );
 
@@ -315,6 +360,19 @@ export function analyzeDocument(extraction, options = {}) {
   if (sentences.length === 0) {
     warnings.push("PDF 未抽取到可用于分析的句子，可能为扫描件或图表页。");
   }
+  if (documents.length > 1) {
+    warnings.push(
+      `已合并分析 ${documents.length} 份报告。跨年度关联按报告年份和语义相似度生成候选，仍需人工核对同一承诺口径。`
+    );
+  }
+
+  const reportYears = [
+    ...new Set(
+      documents
+        .map((document) => document.report_year)
+        .filter((year) => Number.isInteger(year))
+    )
+  ].sort((first, second) => first - second);
 
   return {
     schema_version: "1.0",
@@ -324,20 +382,79 @@ export function analyzeDocument(extraction, options = {}) {
       industry: "待人工补充"
     },
     report_context: {
-      report_years: reportYear ? [reportYear] : [],
-      document_count: 1
+      report_years: reportYears,
+      document_count: documents.length
     },
     elements: [...commitments, ...actions, ...performances],
     breakpoints,
     analysis_meta: {
       model_name: "本地规则分析器",
-      model_version: "0.3",
+      model_version: "0.4",
       prompt_version: "not_applicable",
       generated_at: new Date().toISOString(),
       human_review_required: true
     },
     warnings
   };
+}
+
+function dedupeElements(elements, multiDocument) {
+  if (!multiDocument) {
+    return elements;
+  }
+
+  const byKey = new Map();
+  const deduped = [];
+
+  for (const element of elements) {
+    const key = `${element.element_type}:${normalizeForSimilarity(
+      element.content
+    )}`;
+    const existing = byKey.get(key);
+
+    if (!existing) {
+      const copy = {
+        ...element,
+        source_occurrences: [
+          {
+            document_name: element.source_document?.name || "上传报告",
+            report_year: element.report_year,
+            page: element.page
+          }
+        ]
+      };
+      byKey.set(key, copy);
+      deduped.push(copy);
+      continue;
+    }
+
+    if (
+      !existing.source_occurrences.some(
+        (occurrence) =>
+          occurrence.document_name === element.source_document?.name &&
+          occurrence.page === element.page
+      )
+    ) {
+      existing.source_occurrences.push({
+        document_name: element.source_document?.name || "上传报告",
+        report_year: element.report_year,
+        page: element.page
+      });
+    }
+
+    if ((element.report_year || 9999) < (existing.report_year || 9999)) {
+      existing.report_year = element.report_year;
+      existing.page = element.page;
+      existing.source_quote = element.source_quote;
+      existing.source_document = element.source_document;
+    }
+    existing.latest_report_year = Math.max(
+      existing.latest_report_year || existing.report_year || 0,
+      element.report_year || 0
+    );
+  }
+
+  return deduped;
 }
 
 function collectSentences(pages) {

@@ -11,7 +11,7 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
   import.meta.url
 ).href;
 
-export async function extractPdfInBrowser(file) {
+export async function extractPdfInBrowser(file, options = {}) {
   const startedAt = performance.now();
   const bytes = new Uint8Array(await file.arrayBuffer());
   const loadingTask = pdfjsLib.getDocument({
@@ -35,6 +35,11 @@ export async function extractPdfInBrowser(file) {
         text: lines.join("\n").trim(),
         width: Math.round(viewport.width),
         height: Math.round(viewport.height)
+      });
+      options.onProgress?.({
+        current_page: pageNumber,
+        total_pages: document.numPages,
+        file_name: file.name
       });
       page.cleanup();
     }

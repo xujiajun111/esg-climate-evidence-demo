@@ -1,4 +1,7 @@
-import { analyzeDocument } from "./analyzer.js";
+import {
+  analyzeDocument,
+  analyzeDocuments
+} from "./analyzer.js";
 import {
   buildEvidenceChains,
   buildYearSeries,
@@ -287,9 +290,9 @@ function bindUploadEvents() {
   });
 
   elements.pdfInput.addEventListener("change", () => {
-    const [file] = elements.pdfInput.files;
-    if (file) {
-      handlePdfFile(file);
+    const files = [...elements.pdfInput.files];
+    if (files.length > 0) {
+      handlePdfFiles(files);
     }
   });
 
@@ -308,9 +311,9 @@ function bindUploadEvents() {
   }
 
   elements.dropzone.addEventListener("drop", (event) => {
-    const [file] = event.dataTransfer.files;
-    if (file) {
-      handlePdfFile(file);
+    const files = [...event.dataTransfer.files];
+    if (files.length > 0) {
+      handlePdfFiles(files);
     }
   });
 
@@ -549,27 +552,40 @@ function bindListEvents() {
   });
 }
 
-async function handlePdfFile(file) {
+async function handlePdfFiles(fileList) {
   if (state.isUploading) {
     showToast("当前已有文件正在处理");
     return;
   }
 
-  if (!file.name.toLowerCase().endsWith(".pdf")) {
+  const files = [...fileList];
+  if (files.length === 0) {
+    return;
+  }
+
+  if (files.some((file) => !file.name.toLowerCase().endsWith(".pdf"))) {
     showToast("请选择 PDF 格式的可持续报告");
     elements.pdfInput.value = "";
     return;
   }
 
-  if (file.size > MAX_PDF_MB * 1024 * 1024) {
+  const oversizedFile = files.find(
+    (file) => file.size > MAX_PDF_MB * 1024 * 1024
+  );
+  if (oversizedFile) {
     showToast(`文件超过 ${MAX_PDF_MB} MB，请压缩后再试`);
     elements.pdfInput.value = "";
     return;
   }
 
+  const totalBytes = files.reduce((total, file) => total + file.size, 0);
   state.isUploading = true;
-  elements.currentFileName.textContent = file.name;
-  elements.currentFileSize.textContent = formatFileSize(file.size);
+  elements.currentFileName.textContent =
+    files.length === 1 ? files[0].name : `${files.length} 份可持续报告`;
+  elements.currentFileSize.textContent =
+    files.length === 1
+      ? formatFileSize(totalBytes)
+      : `${files.length} 份 · ${formatFileSize(totalBytes)}`;
   elements.fileProgress.hidden = false;
   elements.fileProgress.classList.remove("is-complete");
   elements.dataModeBadge.textContent = "抽取中";
@@ -580,13 +596,49 @@ async function handlePdfFile(file) {
   elements.progressMessage.textContent = "正在读取 PDF 页面与文本层…";
 
   try {
-    elements.progressMessage.textContent = "正在浏览器本地读取 PDF 文本层…";
-    const payload = await extractPdfInBrowser(file);
-    elements.progressMessage.textContent = "文本抽取完成，正在本地识别气候要素…";
-    payload.analysis = analyzeDocument(payload, {
-      multi_document: false
-    });
-    commitExtraction(payload);
+    const payloads = [];
+
+    for (let index = 0; index < files.length; index += 1) {
+      const file = files[index];
+      const prefix =
+        files.length > 1 ? `[${index + 1}/${files.length}] ${file.name}` : file.name;
+      elements.currentFileName.textContent = prefix;
+      elements.progressMessage.textContent =
+        files.length > 1
+          ? `正在读取第 ${index + 1}/${files.length} 份报告：${file.name}`
+          : "正在浏览器本地读取 PDF 文本层…";
+
+      const payload = await extractPdfInBrowser(file, {
+        onProgress: ({ current_page, total_pages }) => {
+          if (
+            current_page === 1 ||
+            current_page === total_pages ||
+            current_page % 20 === 0
+          ) {
+            elements.progressMessage.textContent =
+              files.length > 1
+                ? `第 ${index + 1}/${files.length} 份 · ${file.name} · 已读取 ${current_page}/${total_pages} 页`
+                : `已读取 ${current_page}/${total_pages} 页`;
+          }
+        }
+      });
+      payloads.push(payload);
+    }
+
+    elements.currentFileName.textContent =
+      files.length === 1 ? files[0].name : `${files.length} 份可持续报告`;
+    elements.progressMessage.textContent =
+      files.length > 1
+        ? "全部报告抽取完成，正在合并多年度证据并建立跨年度关联…"
+        : "文本抽取完成，正在本地识别气候要素…";
+
+    const combinedPayload =
+      payloads.length === 1 ? payloads[0] : combineExtractions(payloads);
+    combinedPayload.analysis =
+      payloads.length === 1
+        ? analyzeDocument(payloads[0], { multi_document: false })
+        : analyzeDocuments(payloads, { multi_document: true });
+    commitExtraction(combinedPayload);
   } catch (error) {
     elements.dataModeBadge.textContent = "抽取失败";
     elements.analysisStatusLabel.textContent = "分析失败 · 请检查 PDF";
@@ -600,6 +652,104 @@ async function handlePdfFile(file) {
     elements.clearFileButton.disabled = false;
     elements.pdfInput.value = "";
   }
+}
+
+function combineExtractions(payloads) {
+  const documentCount = payloads.length;
+  const pages = payloads.flatMap((payload, documentIndex) =>
+    (payload.pages || []).map((page) => ({
+      ...page,
+      document_index: documentIndex,
+      document_name: payload.file?.name || `报告 ${documentIndex + 1}`
+    }))
+  );
+  const removedLines = payloads.flatMap((payload, documentIndex) =>
+    (payload.debug?.removed_repeated_lines || []).map((entry) => ({
+      ...entry,
+      document_name:
+        payload.file?.name || `报告 ${documentIndex + 1}`
+    }))
+  );
+  const warnings = payloads.flatMap((payload, documentIndex) =>
+    (payload.debug?.warnings || []).map(
+      (warning) =>
+        `${payload.file?.name || `报告 ${documentIndex + 1}`}：${warning}`
+    )
+  );
+  const totalBytes = payloads.reduce(
+    (total, payload) => total + (payload.file?.size_bytes || 0),
+    0
+  );
+
+  return {
+    ok: true,
+    file: {
+      name: `${documentCount} 份可持续报告`,
+      size_bytes: totalBytes
+    },
+    stats: {
+      page_count: payloads.reduce(
+        (total, payload) => total + (payload.stats?.page_count || 0),
+        0
+      ),
+      empty_page_count: payloads.reduce(
+        (total, payload) => total + (payload.stats?.empty_page_count || 0),
+        0
+      ),
+      text_item_count: payloads.reduce(
+        (total, payload) => total + (payload.stats?.text_item_count || 0),
+        0
+      ),
+      raw_character_count: payloads.reduce(
+        (total, payload) => total + (payload.stats?.raw_character_count || 0),
+        0
+      ),
+      cleaned_character_count: payloads.reduce(
+        (total, payload) =>
+          total + (payload.stats?.cleaned_character_count || 0),
+        0
+      ),
+      removed_line_count: payloads.reduce(
+        (total, payload) => total + (payload.stats?.removed_line_count || 0),
+        0
+      ),
+      elapsed_ms: payloads.reduce(
+        (total, payload) => total + (payload.stats?.elapsed_ms || 0),
+        0
+      ),
+      document_count: documentCount
+    },
+    extracted_text: payloads
+      .map(
+        (payload, index) =>
+          `【报告 ${index + 1}：${payload.file?.name || `报告 ${index + 1}`}】\n${
+            payload.extracted_text || ""
+          }`
+      )
+      .join("\n\n"),
+    cleaned_text: payloads
+      .map(
+        (payload, index) =>
+          `【报告 ${index + 1}：${payload.file?.name || `报告 ${index + 1}`}】\n${
+            payload.cleaned_text || ""
+          }`
+      )
+      .join("\n\n"),
+    pages,
+    documents: payloads.map((payload, index) => ({
+      index,
+      name: payload.file?.name || `报告 ${index + 1}`,
+      page_count: payload.stats?.page_count || 0,
+      cleaned_character_count:
+        payload.stats?.cleaned_character_count || 0,
+      elapsed_ms: payload.stats?.elapsed_ms || 0
+    })),
+    debug: {
+      engine: "PDF.js 多文档浏览器本地抽取",
+      removed_repeated_lines: removedLines,
+      warnings
+    }
+  };
 }
 
 function commitExtraction(payload) {
@@ -620,6 +770,10 @@ function commitExtraction(payload) {
   elements.fileProgress.classList.add("is-complete");
 
   const analysis = normalizeAnalysis(payload.analysis);
+  const documentCount =
+    analysis.report_context?.document_count ||
+    payload.stats?.document_count ||
+    1;
   const counts = {
     commitments: analysis.elements.filter(
       (element) => element.element_type === "commitment"
@@ -639,7 +793,7 @@ function commitExtraction(payload) {
     elements.dataModeBadge.textContent = "未识别";
     elements.analysisStatusLabel.textContent = "分析完成 · 未找到有效要素";
     elements.progressMessage.textContent =
-      `已抽取 ${payload.stats.page_count} 页，但未找到满足规则的气候要素。请检查下方文本；扫描版 PDF 还需 OCR。`;
+      `已分析 ${documentCount} 份报告、共抽取 ${payload.stats.page_count} 页，但未找到满足规则的气候要素。请检查下方文本；扫描版 PDF 还需 OCR。`;
     setProgressStep("recognize", "complete");
     renderInsightPanel(analysis);
     clearElementSections(
@@ -649,21 +803,29 @@ function commitExtraction(payload) {
     updateSummary({ commitments: 0, actions: 0, performances: 0, breakpoints: 0 });
     showToast("文本抽取完成，但未识别到三类气候要素");
   } else {
-    elements.dataModeBadge.textContent = "规则分析";
-    elements.analysisStatusLabel.textContent = "分析完成 · 已生成证据链";
+    elements.dataModeBadge.textContent =
+      documentCount > 1 ? `合并分析 · ${documentCount} 份` : "规则分析";
+    elements.analysisStatusLabel.textContent =
+      documentCount > 1
+        ? `分析完成 · 已合并 ${documentCount} 份报告`
+        : "分析完成 · 已生成证据链";
     elements.progressMessage.textContent =
       counts.commitments === 0
-        ? `已抽取 ${payload.stats.page_count} 页：未识别到“量化指标 + 截止年份”的有效承诺；另检出 ${counts.actions} 条行动和 ${counts.performances} 项绩效候选。该结果不能解释为企业没有目标，需人工复核。`
-        : `已抽取 ${payload.stats.page_count} 页并生成规则分析：${counts.commitments} 条承诺、${counts.actions} 条行动、${counts.performances} 项绩效。`;
+        ? `已分析 ${documentCount} 份报告、共 ${payload.stats.page_count} 页：未识别到“量化指标 + 截止年份”的有效承诺；另检出 ${counts.actions} 条行动和 ${counts.performances} 项绩效候选。该结果不能解释为企业没有目标，需人工复核。`
+        : `已分析 ${documentCount} 份报告、共 ${payload.stats.page_count} 页：${counts.commitments} 条承诺、${counts.actions} 条行动、${counts.performances} 项绩效。`;
     setProgressStep("recognize", "complete");
     renderAnalysis(analysis);
     showToast(
-      `分析完成：识别 ${counts.commitments + counts.actions + counts.performances} 条要素`
+      `${documentCount} 份报告分析完成：识别 ${
+        counts.commitments + counts.actions + counts.performances
+      } 条要素`
     );
   }
 
   elements.summaryFootnoteText.textContent =
-    "当前结果由本地规则分析器生成，用于检查页面和证据链流程；分类、关联和断点均需人工复核。";
+    documentCount > 1
+      ? `当前结果合并了 ${documentCount} 份本地分析报告；跨年度关联由报告年份和语义相似度生成，分类、归并与断点均需人工复核。`
+      : "当前结果由本地规则分析器生成，用于检查页面和证据链流程；分类、关联和断点均需人工复核。";
   elements.logicSection.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
@@ -700,13 +862,18 @@ function setProgressStep(stepName, status) {
 }
 
 function renderExtractionStats(stats) {
-  elements.extractionStats.innerHTML = [
+  const entries = [
     [stats.page_count, "PDF 页数"],
     [formatInteger(stats.cleaned_character_count), "清洗后字符"],
     [formatInteger(stats.text_item_count), "文本片段"],
     [stats.removed_line_count, "剔除重复行"],
     [prepareElapsedTime(stats.elapsed_ms), "抽取耗时"]
-  ]
+  ];
+  if (stats.document_count > 1) {
+    entries.unshift([stats.document_count, "报告份数"]);
+  }
+
+  elements.extractionStats.innerHTML = entries
     .map(
       ([value, label]) => `
         <article class="extraction-stat">
@@ -737,9 +904,9 @@ function renderDebugDetails(debug) {
     items.push(`<li>共剔除 ${removed.length} 行重复页眉、页脚或页码。</li>`);
     for (const entry of removed.slice(0, 8)) {
       items.push(
-        `<li>第 ${entry.page} 页 · ${escapeHtml(entry.reason)}：${escapeHtml(
-          entry.line
-        )}</li>`
+        `<li>${entry.document_name ? `${escapeHtml(entry.document_name)} · ` : ""}第 ${
+          entry.page
+        } 页 · ${escapeHtml(entry.reason)}：${escapeHtml(entry.line)}</li>`
       );
     }
   }
@@ -756,7 +923,12 @@ function updateTextView() {
   const text = isCleanView
     ? state.extraction.cleaned_text
     : state.extraction.pages
-        .map((page) => `【第 ${page.page_number} 页】\n${page.text}`)
+        .map(
+          (page) =>
+            `【${
+              page.document_name ? `${page.document_name} · ` : ""
+            }第 ${page.page_number} 页】\n${page.text}`
+        )
         .join("\n\n");
   state.currentText = text;
 
@@ -771,7 +943,11 @@ function updateTextView() {
 function formatPreviewText(text, query) {
   const safeText = escapeHtml(text || "未抽取到正文文本。");
   const pageLabelPattern = /【第\s*(\d+)\s*页】/g;
-  const withPageLabels = safeText.replace(
+  const withDocumentPageLabels = safeText.replace(
+    /【([^】\n]{1,180}? · 第\s*\d+\s*页)】/g,
+    '<span class="page-label">$1</span>'
+  );
+  const withPageLabels = withDocumentPageLabels.replace(
     pageLabelPattern,
     '<span class="page-label">第 $1 页</span>'
   );

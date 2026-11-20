@@ -11,7 +11,8 @@
     "test:analyzer": "node tests/analyzer-regression.mjs",
     "test:chain": "node tests/chain-model-regression.mjs",
     "test:layout": "node tests/text-layout-regression.mjs",
-    "test": "npm run test:analyzer && npm run test:chain && npm run test:layout"
+    "test:multi": "node tests/multi-document-regression.mjs",
+    "test": "npm run test:analyzer && npm run test:chain && npm run test:layout && npm run test:multi"
   },
   "engines": {
     "node": ">=20"
