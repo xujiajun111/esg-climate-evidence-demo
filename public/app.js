@@ -205,7 +205,8 @@ const state = {
   chainYearFilter: "all",
   selectedEvidenceId: null,
   showAllActions: false,
-  showAllPerformances: false
+  showAllPerformances: false,
+  pendingFiles: []
 };
 
 const elements = {
@@ -218,6 +219,8 @@ const elements = {
   toggleTextButton: document.querySelector("#toggle-text-button"),
   currentFileName: document.querySelector("#current-file-name"),
   currentFileSize: document.querySelector("#current-file-size"),
+  fileQueueList: document.querySelector("#file-queue-list"),
+  startAnalysisButton: document.querySelector("#start-analysis-button"),
   clearFileButton: document.querySelector("#clear-file-button"),
   progressMessage: document.querySelector("#progress-message"),
   dataModeBadge: document.querySelector("#data-mode-badge"),
@@ -292,7 +295,8 @@ function bindUploadEvents() {
   elements.pdfInput.addEventListener("change", () => {
     const files = [...elements.pdfInput.files];
     if (files.length > 0) {
-      handlePdfFiles(files);
+      queuePdfFiles(files);
+      elements.pdfInput.value = "";
     }
   });
 
@@ -313,8 +317,26 @@ function bindUploadEvents() {
   elements.dropzone.addEventListener("drop", (event) => {
     const files = [...event.dataTransfer.files];
     if (files.length > 0) {
-      handlePdfFiles(files);
+      queuePdfFiles(files);
     }
+  });
+
+  elements.startAnalysisButton.addEventListener("click", () => {
+    if (state.pendingFiles.length === 0 || state.isUploading) {
+      return;
+    }
+    elements.startAnalysisButton.disabled = true;
+    handlePdfFiles([...state.pendingFiles]);
+  });
+
+  elements.fileQueueList.addEventListener("click", (event) => {
+    const removeButton = event.target.closest("[data-remove-queued-file]");
+    if (!removeButton || state.isUploading) {
+      return;
+    }
+    const index = Number(removeButton.dataset.removeQueuedFile);
+    state.pendingFiles.splice(index, 1);
+    renderFileQueue();
   });
 
   elements.clearFileButton.addEventListener("click", resetToDemo);
@@ -330,6 +352,8 @@ function bindUploadEvents() {
     elements.textPanel.hidden = true;
     elements.toggleTextButton.disabled = true;
     elements.toggleTextButton.textContent = "查看文本抽取过程";
+    state.pendingFiles = [];
+    renderFileQueue();
     state.analysis = sampleAnalysis;
     elements.dataModeBadge.textContent = "演示数据";
     renderAnalysis(sampleAnalysis);
@@ -552,6 +576,118 @@ function bindListEvents() {
   });
 }
 
+function queuePdfFiles(fileList) {
+  if (state.isUploading) {
+    showToast("当前已有报告正在分析，请等待完成");
+    return;
+  }
+
+  const incoming = [...fileList];
+  const validFiles = [];
+  let rejectedCount = 0;
+
+  for (const file of incoming) {
+    if (
+      !file.name.toLowerCase().endsWith(".pdf") ||
+      file.size > MAX_PDF_MB * 1024 * 1024
+    ) {
+      rejectedCount += 1;
+      continue;
+    }
+    validFiles.push(file);
+  }
+
+  const existingKeys = new Set(
+    state.pendingFiles.map((file) => queuedFileKey(file))
+  );
+  const newFiles = validFiles.filter((file) => {
+    const key = queuedFileKey(file);
+    if (existingKeys.has(key)) {
+      return false;
+    }
+    existingKeys.add(key);
+    return true;
+  });
+
+  state.pendingFiles.push(...newFiles);
+  renderFileQueue();
+
+  if (newFiles.length === 0) {
+    showToast(
+      rejectedCount > 0
+        ? "文件格式不符合要求或超过 200 MB"
+        : "这些文件已在待分析列表中"
+    );
+    return;
+  }
+
+  elements.fileProgress.hidden = false;
+  elements.fileProgress.classList.remove("is-complete");
+  elements.clearFileButton.disabled = false;
+  elements.toggleTextButton.disabled = true;
+  elements.dataModeBadge.textContent = "待分析";
+  elements.analysisStatusLabel.textContent = `已选择 ${state.pendingFiles.length} 份报告`;
+  elements.progressMessage.textContent =
+    "可以继续拖入补充报告；确认文件列表后点击“开始分析”。";
+  setProgressStep("upload", "active");
+  setProgressStep("extract", null);
+  setProgressStep("clean", null);
+  setProgressStep("recognize", null);
+  showToast(
+    rejectedCount > 0
+      ? `已加入 ${newFiles.length} 份，跳过 ${rejectedCount} 个无效文件`
+      : `已加入 ${newFiles.length} 份报告`
+  );
+}
+
+function renderFileQueue() {
+  const files = state.pendingFiles;
+  if (files.length === 0) {
+    elements.fileQueueList.innerHTML = "";
+    elements.startAnalysisButton.disabled = true;
+    elements.startAnalysisButton.textContent = "开始分析";
+    if (!state.isUploading) {
+      elements.fileProgress.hidden = true;
+    }
+    return;
+  }
+
+  const totalBytes = files.reduce((total, file) => total + file.size, 0);
+  elements.currentFileName.textContent =
+    files.length === 1 ? files[0].name : `${files.length} 份可持续报告`;
+  elements.currentFileSize.textContent =
+    files.length === 1
+      ? formatFileSize(totalBytes)
+      : `${files.length} 份 · ${formatFileSize(totalBytes)}`;
+  elements.fileQueueList.innerHTML = files
+    .map(
+      (file, index) => `
+        <div class="queue-file-item">
+          <strong title="${escapeHtml(file.name)}">${escapeHtml(file.name)}</strong>
+          <small>${escapeHtml(formatFileSize(file.size))}</small>
+          <button
+            type="button"
+            data-remove-queued-file="${index}"
+            aria-label="从待分析列表移除 ${escapeHtml(file.name)}"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="m6 6 12 12M18 6 6 18"></path>
+            </svg>
+          </button>
+        </div>
+      `
+    )
+    .join("");
+  elements.startAnalysisButton.disabled = state.isUploading;
+  elements.startAnalysisButton.textContent = state.isUploading
+    ? "正在分析…"
+    : `开始分析 ${files.length} 份报告`;
+}
+
+function queuedFileKey(file) {
+  return `${file.name}:${file.size}:${file.lastModified}`;
+}
+
 async function handlePdfFiles(fileList) {
   if (state.isUploading) {
     showToast("当前已有文件正在处理");
@@ -580,6 +716,7 @@ async function handlePdfFiles(fileList) {
 
   const totalBytes = files.reduce((total, file) => total + file.size, 0);
   state.isUploading = true;
+  renderFileQueue();
   elements.currentFileName.textContent =
     files.length === 1 ? files[0].name : `${files.length} 份可持续报告`;
   elements.currentFileSize.textContent =
@@ -651,6 +788,7 @@ async function handlePdfFiles(fileList) {
     state.isUploading = false;
     elements.clearFileButton.disabled = false;
     elements.pdfInput.value = "";
+    renderFileQueue();
   }
 }
 
@@ -1852,6 +1990,8 @@ function resetToDemo() {
   if (state.isUploading) {
     return;
   }
+  state.pendingFiles = [];
+  renderFileQueue();
   state.extraction = null;
   state.currentText = "";
   state.query = "";
