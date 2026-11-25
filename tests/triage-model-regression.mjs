@@ -55,7 +55,7 @@ const analysis = {
   breakpoints: [
     {
       id: "BP-001",
-      type: "B",
+      type: "A",
       title: "行动缺少行动级绩效",
       description: "项目结果仅披露集团汇总口径。",
       commitment_id: "C-01",

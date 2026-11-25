@@ -1,7 +1,7 @@
 const BREAKPOINT_RISK = {
-  A: 0.96,
-  B: 0.86,
-  C: 0.9
+  C: 0.96,
+  A: 0.86,
+  P: 0.9
 };
 
 const ELEMENT_RISK = {
@@ -11,9 +11,9 @@ const ELEMENT_RISK = {
 };
 
 const BREAKPOINT_EFFORT = {
-  A: 20,
-  B: 18,
-  C: 16
+  C: 20,
+  A: 18,
+  P: 16
 };
 
 const ELEMENT_EFFORT = {

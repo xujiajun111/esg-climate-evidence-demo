@@ -33,7 +33,7 @@ const analysis = {
       report_year: 2023,
       linked_actions: [],
       linked_performances: [],
-      chain_status: "breakpoint_a"
+      chain_status: "commitment_gap"
     },
     {
       id: "A-01",
@@ -74,19 +74,19 @@ const analysis = {
   breakpoints: [
     {
       id: "BP-001",
-      type: "A",
+      type: "C",
       commitment_id: "C-03",
       evidence_ids: ["C-03"]
     },
     {
       id: "BP-002",
-      type: "B",
+      type: "A",
       commitment_id: "C-02",
       evidence_ids: ["C-02", "A-02", "P-02"]
     },
     {
       id: "BP-003",
-      type: "C",
+      type: "P",
       commitment_id: null,
       evidence_ids: ["P-03"]
     }
@@ -97,9 +97,9 @@ const chains = buildEvidenceChains(analysis);
 assert.equal(chains.length, 4);
 assert.deepEqual(
   chains.slice(0, 3).map((chain) => chain.type),
-  ["complete", "B", "A"]
+  ["complete", "A", "C"]
 );
-assert.equal(chains[3].type, "C");
+assert.equal(chains[3].type, "P");
 assert.equal(chains[3].isOrphan, true);
 assert.deepEqual(chains[0].elementIds, ["C-01", "A-01", "P-01"]);
 assert.equal(chains[0].breakpoints.length, 0);
@@ -108,9 +108,9 @@ assert.equal(findChainForEvidence(chains, "P-03").id, "orphan-P-03");
 
 assert.equal(filterEvidenceChains(chains, "all").length, 4);
 assert.equal(filterEvidenceChains(chains, "complete").length, 1);
-assert.equal(filterEvidenceChains(chains, "A").length, 1);
-assert.equal(filterEvidenceChains(chains, "B").length, 1);
 assert.equal(filterEvidenceChains(chains, "C").length, 1);
+assert.equal(filterEvidenceChains(chains, "A").length, 1);
+assert.equal(filterEvidenceChains(chains, "P").length, 1);
 
 assert.deepEqual(buildYearSeries(analysis.elements), [
   { year: 2022, commitment: 2, action: 0, performance: 0, total: 2 },

@@ -3,7 +3,7 @@ import { analyzeDocument } from "../public/analyzer.js";
 
 const cases = [
   {
-    name: "钢铁企业完整链路与 B 类断点",
+    name: "钢铁企业完整链路与 A 类行动断点",
     fileName: "某钢铁股份-2024可持续发展报告.pdf",
     text: [
       "某钢铁股份2024可持续发展报告",
@@ -18,11 +18,11 @@ const cases = [
       commitment: 2,
       action: 2,
       performance: 2,
-      breakpoints: ["B"]
+      breakpoints: ["A"]
     }
   },
   {
-    name: "化工企业 A 类断点",
+    name: "化工企业 C 类承诺断点",
     fileName: "某化工集团-2022可持续发展报告.pdf",
     text: [
       "某化工集团2022可持续发展报告",
@@ -32,11 +32,11 @@ const cases = [
       commitment: 1,
       action: 0,
       performance: 0,
-      breakpoints: ["A"]
+      breakpoints: ["C"]
     }
   },
   {
-    name: "电力企业 C 类断点",
+    name: "电力企业 P 类绩效断点",
     fileName: "某电力股份-2024可持续发展报告.pdf",
     text: [
       "某电力股份2024可持续发展报告",
@@ -46,7 +46,7 @@ const cases = [
       commitment: 0,
       action: 0,
       performance: 1,
-      breakpoints: ["C"]
+      breakpoints: ["P"]
     }
   },
   {
@@ -76,7 +76,7 @@ const cases = [
       commitment: 0,
       action: 2,
       performance: 0,
-      breakpoints: ["B", "B"]
+      breakpoints: ["A", "A"]
     }
   },
   {
@@ -120,7 +120,7 @@ const cases = [
       commitment: 1,
       action: 0,
       performance: 0,
-      breakpoints: ["A"]
+      breakpoints: ["C"]
     }
   },
   {
@@ -134,7 +134,7 @@ const cases = [
       commitment: 0,
       action: 0,
       performance: 1,
-      breakpoints: ["C"]
+      breakpoints: ["P"]
     },
     forbiddenPerformanceValue: 2024
   },
@@ -191,7 +191,7 @@ const cases = [
       commitment: 1,
       action: 0,
       performance: 0,
-      breakpoints: ["A"]
+      breakpoints: ["C"]
     }
   },
   {

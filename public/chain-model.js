@@ -2,9 +2,9 @@ const EVIDENCE_TYPES = new Set(["commitment", "action", "performance"]);
 
 const CHAIN_LABELS = {
   complete: "链路完整",
-  A: "承诺无跟进",
-  B: "行动缺结果",
-  C: "绩效缺支撑",
+  C: "承诺无跟进",
+  A: "行动缺结果",
+  P: "绩效缺支撑",
   review: "待人工复核"
 };
 
@@ -98,14 +98,14 @@ export function buildEvidenceChains(analysis = {}) {
   appendOrphanGroup({
     chains,
     elements: orphanedActions,
-    type: "B",
+    type: "A",
     label: "行动未入承诺链",
     kind: "action"
   });
   appendOrphanGroup({
     chains,
     elements: orphanedPerformances,
-    type: "C",
+    type: "P",
     label: "孤立绩效",
     kind: "performance"
   });
@@ -168,33 +168,41 @@ export function chainTypeLabel(type) {
   return CHAIN_LABELS[type] || CHAIN_LABELS.review;
 }
 
+export function normalizeChainStatus(status) {
+  if (status === "breakpoint_a") return "commitment_gap";
+  if (status === "breakpoint_b") return "action_gap";
+  if (status === "breakpoint_c") return "performance_gap";
+  return status;
+}
+
 function resolveChainType(commitment, actions, performances) {
+  const chainStatus = normalizeChainStatus(commitment.chain_status);
   if (
-    commitment.chain_status === "complete" ||
+    chainStatus === "complete" ||
     (actions.length > 0 &&
       performances.length > 0 &&
-      commitment.chain_status !== "breakpoint_b" &&
-      commitment.chain_status !== "breakpoint_c")
+      chainStatus !== "action_gap" &&
+      chainStatus !== "performance_gap")
   ) {
     return "complete";
   }
-  if (commitment.chain_status === "breakpoint_a") {
+  if (chainStatus === "commitment_gap") {
+    return "C";
+  }
+  if (chainStatus === "action_gap") {
     return "A";
   }
-  if (commitment.chain_status === "breakpoint_b") {
-    return "B";
-  }
-  if (commitment.chain_status === "breakpoint_c") {
-    return "C";
+  if (chainStatus === "performance_gap") {
+    return "P";
   }
   if (actions.length === 0 && performances.length === 0) {
-    return "A";
+    return "C";
   }
   if (actions.length > 0 && performances.length === 0) {
-    return "B";
+    return "A";
   }
   if (actions.length === 0 && performances.length > 0) {
-    return "C";
+    return "P";
   }
   return "review";
 }

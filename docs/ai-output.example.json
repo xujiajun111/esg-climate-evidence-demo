@@ -1,5 +1,6 @@
 {
-  "schema_version": "1.0",
+  "schema_version": "1.1",
+  "breakpoint_scheme": "CAP",
   "analysis_mode": "rule_preview",
   "company": {
     "name": "某钢铁股份",
@@ -48,7 +49,7 @@
       },
       "linked_actions": ["A-02", "A-03"],
       "linked_performances": ["P-02"],
-      "chain_status": "breakpoint_b"
+      "chain_status": "action_gap"
     },
     {
       "id": "A-01",
@@ -130,7 +131,7 @@
   "breakpoints": [
     {
       "id": "BP-001",
-      "type": "B",
+      "type": "A",
       "commitment_id": "C-02",
       "title": "有行动，但缺少单项量化绩效",
       "reason": "已检出两项对应行动，但只有集团整体吨钢碳排放数据，未披露各行动直接产生的节能量或减排量。",

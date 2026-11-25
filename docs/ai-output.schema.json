@@ -7,6 +7,7 @@
   "additionalProperties": false,
   "required": [
     "schema_version",
+    "breakpoint_scheme",
     "analysis_mode",
     "company",
     "report_context",
@@ -17,7 +18,11 @@
   ],
   "properties": {
     "schema_version": {
-      "const": "1.0"
+      "const": "1.1"
+    },
+    "breakpoint_scheme": {
+      "const": "CAP",
+      "description": "C = Commitment，A = Action，P = Performance。"
     },
     "analysis_mode": {
       "type": "string",
@@ -271,9 +276,9 @@
               "type": "string",
               "enum": [
                 "complete",
-                "breakpoint_a",
-                "breakpoint_b",
-                "breakpoint_c",
+                "commitment_gap",
+                "action_gap",
+                "performance_gap",
                 "needs_review"
               ]
             }
@@ -470,7 +475,8 @@
         },
         "type": {
           "type": "string",
-          "enum": ["A", "B", "C"]
+          "enum": ["C", "A", "P"],
+          "description": "C = Commitment 承诺断点；A = Action 行动断点；P = Performance 绩效断点。"
         },
         "commitment_id": {
           "type": ["string", "null"],

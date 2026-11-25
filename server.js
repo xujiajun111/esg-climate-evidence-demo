@@ -67,7 +67,7 @@ app.get("/api/health", (_request, response) => {
   response.json({
     ok: true,
     service: "esg-evidence-demo",
-    schema_version: "1.0",
+    schema_version: "1.1",
     extraction_engine: "PDF.js",
     analysis_engine: "rule_preview",
     uptime_seconds: Math.round(process.uptime())

@@ -6,7 +6,8 @@ import {
   buildEvidenceChains,
   buildYearSeries,
   filterEvidenceChains,
-  findChainForEvidence
+  findChainForEvidence,
+  normalizeChainStatus
 } from "./chain-model.js";
 import { extractPdfInBrowser } from "./pdf-client.js";
 import { buildReviewPortfolio } from "./triage-model.js";
@@ -14,7 +15,8 @@ import { buildReviewPortfolio } from "./triage-model.js";
 const MAX_PDF_MB = 200;
 
 const sampleAnalysis = {
-  schema_version: "1.0",
+  schema_version: "1.1",
+  breakpoint_scheme: "CAP",
   company: {
     name: "某钢铁股份",
     report_year: 2024,
@@ -51,7 +53,7 @@ const sampleAnalysis = {
       due_year: 2028,
       linked_actions: ["A-02", "A-03"],
       linked_performances: ["P-02"],
-      chain_status: "breakpoint_b"
+      chain_status: "action_gap"
     },
     {
       id: "C-03",
@@ -67,7 +69,7 @@ const sampleAnalysis = {
       due_year: 2027,
       linked_actions: [],
       linked_performances: [],
-      chain_status: "breakpoint_a"
+      chain_status: "commitment_gap"
     },
     {
       id: "A-01",
@@ -157,7 +159,7 @@ const sampleAnalysis = {
   breakpoints: [
     {
       id: "BP-001",
-      type: "A",
+      type: "C",
       title: "有承诺，连续年度报告未见跟进",
       description:
         "C-03 于 2022 年提出 2027 年运营边界碳中和，但 2023、2024 年报告均未检出对应减排行动或绩效更新。",
@@ -168,7 +170,7 @@ const sampleAnalysis = {
     },
     {
       id: "BP-002",
-      type: "B",
+      type: "A",
       title: "有行动，但缺少单项量化绩效",
       description:
         "A-02、A-03 已落地，但报告只披露集团整体吨钢碳排放结果，未单列两项行动各自的节能量、减排量或产出。",
@@ -179,7 +181,7 @@ const sampleAnalysis = {
     },
     {
       id: "BP-003",
-      type: "C",
+      type: "P",
       title: "有绩效，但全文未见支撑行动",
       description:
         "P-03 披露本年度碳排放同比下降 10%，当前样本中未检出能够直接支撑该项结果的节能改造或绿电采购行动。",
@@ -615,8 +617,8 @@ const presenterSteps = [
     title: "从文本到证据链",
     target: "#chain-section",
     copy:
-      "当前结果来自内置样例 PDF 的实际运行。系统按承诺、行动、绩效建立证据链，A/B/C 断点只是待核线索，不直接给企业定性。",
-    action: "切换完整、A、B、C 筛选，指出一条完整链路和一条断裂链路。"
+      "当前结果来自内置样例 PDF 的实际运行。系统按承诺、行动、绩效建立证据链，C/A/P 断点只是待核线索，不直接给企业定性。",
+    action: "切换完整、C、A、P 筛选，指出一条完整链路和一条断裂链路。"
   },
   {
     title: "原文追溯与人工复核",
@@ -729,7 +731,7 @@ function aiDisclosureSummary() {
   return [
     "AI 工具使用说明 v1.0",
     "文本抽取：PDF.js 6.5.438，浏览器本地处理文字层，不上传原始 PDF。",
-    "规则分析：证据链规则分析器 v0.4，生成候选、关联和 A/B/C 断点。",
+    "规则分析：证据链规则分析器 v0.5，生成候选、关联和 C/A/P 断点。",
     "大模型复核：可选 OpenAI 兼容接口；当前公网默认未启用外部大模型。",
     "人工复核：AI 建议不直接定性，所有候选支持确认、存疑、排除并进入审计导出。",
     "风险控制：接口失败自动回退规则；保留原文、页码、分析模式与复核记录。"
@@ -1010,7 +1012,8 @@ function buildAuditExport() {
     });
 
   return {
-    schema_version: "1.0",
+    schema_version: "1.1",
+    breakpoint_scheme: "CAP",
     export_type: "climate_evidence_audit",
     generated_at: new Date().toISOString(),
     analysis_mode: state.analysisMode,
@@ -2488,7 +2491,7 @@ function renderInsightPanel(analysis) {
   const completeChains = commitments.filter(
     (commitment) => commitment.chain_status === "complete"
   ).length;
-  const breakpointCounts = { A: 0, B: 0, C: 0 };
+  const breakpointCounts = { C: 0, A: 0, P: 0 };
   for (const breakpoint of analysis.breakpoints) {
     if (breakpoint.type in breakpointCounts) {
       breakpointCounts[breakpoint.type] += 1;
@@ -2521,14 +2524,14 @@ function renderInsightPanel(analysis) {
       <p>承诺、对应行动与绩效均已检出</p>
     </article>
     <article class="logic-result-card">
-      <small>A · 承诺无跟进</small>
-      <strong>${padCount(breakpointCounts.A)}</strong>
+      <small>C · 承诺无跟进</small>
+      <strong>${padCount(breakpointCounts.C)}</strong>
       <p>需跨后续年度报告持续确认</p>
     </article>
     <article class="logic-result-card">
-      <small>B / C · 证据链断裂</small>
-      <strong>${padCount(breakpointCounts.B + breakpointCounts.C)}</strong>
-      <p>B ${breakpointCounts.B} 条行动缺结果，C ${breakpointCounts.C} 条绩效缺支撑</p>
+      <small>A / P · 证据链断裂</small>
+      <strong>${padCount(breakpointCounts.A + breakpointCounts.P)}</strong>
+      <p>A ${breakpointCounts.A} 条行动缺结果，P ${breakpointCounts.P} 条绩效缺支撑</p>
     </article>
   `;
 }
@@ -2584,9 +2587,9 @@ function renderChainFilters(chains) {
   const counts = {
     all: chains.length,
     complete: chains.filter((chain) => chain.type === "complete").length,
+    C: chains.filter((chain) => chain.type === "C").length,
     A: chains.filter((chain) => chain.type === "A").length,
-    B: chains.filter((chain) => chain.type === "B").length,
-    C: chains.filter((chain) => chain.type === "C").length
+    P: chains.filter((chain) => chain.type === "P").length
   };
 
   elements.chainFilterGroup
@@ -3171,9 +3174,9 @@ function renderBreakpoints(breakpoints) {
   }
 
   const labels = {
-    A: "承诺无跟进",
-    B: "行动缺结果",
-    C: "绩效缺支撑"
+    C: "承诺无跟进",
+    A: "行动缺结果",
+    P: "绩效缺支撑"
   };
 
   elements.breakpointList.innerHTML = breakpoints
@@ -3239,16 +3242,17 @@ function setSectionCounts(commitments, actions, performances) {
 }
 
 function commitmentStatus(chainStatus) {
-  if (chainStatus === "complete") {
+  const normalizedStatus = normalizeChainStatus(chainStatus);
+  if (normalizedStatus === "complete") {
     return { className: "status-complete", label: "链路完整" };
   }
-  if (chainStatus === "breakpoint_a") {
-    return { className: "status-warning", label: "A · 无跟进" };
+  if (normalizedStatus === "commitment_gap") {
+    return { className: "status-warning", label: "C · 承诺无跟进" };
   }
-  if (chainStatus === "breakpoint_c") {
-    return { className: "status-warning", label: "C · 缺行动支撑" };
+  if (normalizedStatus === "performance_gap") {
+    return { className: "status-warning", label: "P · 绩效缺支撑" };
   }
-  return { className: "status-warning", label: "B · 缺单项绩效" };
+  return { className: "status-warning", label: "A · 行动缺结果" };
 }
 
 function normalizeAnalysis(input) {
@@ -3259,6 +3263,13 @@ function normalizeAnalysis(input) {
     };
   }
 
+  const usesLegacyBreakpointTypes =
+    input.breakpoint_scheme !== "CAP" &&
+    (input.schema_version === "1.0" ||
+      (input.breakpoints || []).some((breakpoint) =>
+        ["A", "B", "C"].includes(breakpoint.type)
+      ));
+  const legacyTypeMap = { A: "C", B: "A", C: "P" };
   const elements = (input.elements || []).map((element) => {
     if (element.element_type === "commitment") {
       const target = element.normalized_target || {};
@@ -3272,7 +3283,9 @@ function normalizeAnalysis(input) {
           element.baseline_year || target.baseline_year || "未单列",
         linked_actions: element.linked_actions || [],
         linked_performances: element.linked_performances || [],
-        chain_status: element.chain_status || "needs_review"
+        chain_status: normalizeChainStatus(
+          element.chain_status || "needs_review"
+        )
       };
     }
 
@@ -3304,9 +3317,14 @@ function normalizeAnalysis(input) {
 
   return {
     ...input,
+    schema_version: "1.1",
+    breakpoint_scheme: "CAP",
     elements,
     breakpoints: (input.breakpoints || []).map((breakpoint) => ({
       ...breakpoint,
+      type: usesLegacyBreakpointTypes
+        ? legacyTypeMap[breakpoint.type] || breakpoint.type
+        : breakpoint.type,
       review_status: breakpoint.review_status || "待核",
       description: breakpoint.description || breakpoint.reason || "待人工复核",
       missing: breakpoint.missing || breakpoint.missing_evidence || ["待确认证据"]

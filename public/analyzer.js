@@ -375,7 +375,8 @@ function analyzeExtractions(extractions, options = {}) {
   ].sort((first, second) => first - second);
 
   return {
-    schema_version: "1.0",
+    schema_version: "1.1",
+    breakpoint_scheme: "CAP",
     analysis_mode: "rule_preview",
     company: {
       name: companyName,
@@ -389,7 +390,7 @@ function analyzeExtractions(extractions, options = {}) {
     breakpoints,
     analysis_meta: {
       model_name: "本地规则分析器",
-      model_version: "0.4",
+      model_version: "0.5",
       prompt_version: "not_applicable",
       generated_at: new Date().toISOString(),
       human_review_required: true
@@ -794,11 +795,11 @@ function linkElements(commitments, actions, performances, multiDocument) {
     if (hasActions && directPerformances.length > 0) {
       commitment.chain_status = "complete";
     } else if (hasActions) {
-      commitment.chain_status = "breakpoint_b";
+      commitment.chain_status = "action_gap";
     } else if (commitment.linked_performances.length > 0) {
-      commitment.chain_status = "breakpoint_c";
+      commitment.chain_status = "performance_gap";
     } else {
-      commitment.chain_status = "breakpoint_a";
+      commitment.chain_status = "commitment_gap";
     }
   }
 }
@@ -837,15 +838,15 @@ function buildBreakpoints(commitments, actions, performances, multiDocument) {
   let index = 1;
 
   for (const commitment of commitments) {
-    if (commitment.chain_status === "breakpoint_a") {
+    if (commitment.chain_status === "commitment_gap") {
       breakpoints.push({
         id: `BP-${String(index).padStart(3, "0")}`,
-        type: "A",
+        type: "C",
         commitment_id: commitment.id,
         title: "有承诺，当前文件中未检出跟进",
         reason: multiDocument
           ? "承诺发布后未识别到对应行动或绩效更新，建议结合后续年度报告确认。"
-          : "当前仅分析一份报告。未检出对应行动或绩效，但 A 类断点需结合承诺发布后的后续年度报告确认。",
+          : "当前仅分析一份报告。未检出对应行动或绩效，但 C 类承诺断点需结合承诺发布后的后续年度报告确认。",
         missing_evidence: ["对应行动", "绩效更新"],
         evidence_ids: [commitment.id],
         review_status: "待核"
@@ -853,10 +854,10 @@ function buildBreakpoints(commitments, actions, performances, multiDocument) {
       index += 1;
     }
 
-    if (commitment.chain_status === "breakpoint_b") {
+    if (commitment.chain_status === "action_gap") {
       breakpoints.push({
         id: `BP-${String(index).padStart(3, "0")}`,
-        type: "B",
+        type: "A",
         commitment_id: commitment.id,
         title: "有行动，但缺少可对应的量化绩效",
         reason:
@@ -872,10 +873,10 @@ function buildBreakpoints(commitments, actions, performances, multiDocument) {
       index += 1;
     }
 
-    if (commitment.chain_status === "breakpoint_c") {
+    if (commitment.chain_status === "performance_gap") {
       breakpoints.push({
         id: `BP-${String(index).padStart(3, "0")}`,
-        type: "C",
+        type: "P",
         commitment_id: commitment.id,
         title: "有绩效，但缺少对应行动支撑",
         reason:
@@ -897,7 +898,7 @@ function buildBreakpoints(commitments, actions, performances, multiDocument) {
   if (orphanPerformances.length > 3) {
     breakpoints.push({
       id: `BP-${String(index).padStart(3, "0")}`,
-      type: "C",
+      type: "P",
       commitment_id: null,
       title: `${orphanPerformances.length} 项绩效未进入可追溯行动链`,
       reason:
@@ -911,7 +912,7 @@ function buildBreakpoints(commitments, actions, performances, multiDocument) {
     for (const performance of orphanPerformances) {
       breakpoints.push({
         id: `BP-${String(index).padStart(3, "0")}`,
-        type: "C",
+        type: "P",
         commitment_id: null,
         title: "有绩效，但全文未见支撑行动",
         reason:
@@ -930,7 +931,7 @@ function buildBreakpoints(commitments, actions, performances, multiDocument) {
   if (orphanActions.length > 5) {
     breakpoints.push({
       id: `BP-${String(index).padStart(3, "0")}`,
-      type: "B",
+      type: "A",
       commitment_id: null,
       title: `${orphanActions.length} 条行动未关联承诺或行动级绩效`,
       reason:
@@ -944,7 +945,7 @@ function buildBreakpoints(commitments, actions, performances, multiDocument) {
     for (const action of orphanActions) {
       breakpoints.push({
         id: `BP-${String(index).padStart(3, "0")}`,
-        type: "B",
+        type: "A",
         commitment_id: null,
         title: "有行动，但未披露行动级量化绩效",
         reason:

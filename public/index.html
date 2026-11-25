@@ -148,7 +148,7 @@
             </div>
             <div class="heading-meta">
               <span>DEMO</span>
-              <strong>v0.9</strong>
+              <strong>v0.9.1</strong>
               <small>当前阶段：证据链分析</small>
               <button class="button button-dark finals-demo-button" id="start-finals-demo-button" type="button">
                 5 分钟评审演示
@@ -320,16 +320,16 @@
 
               <div class="legend-box">
                 <div>
-                  <span class="legend-dot legend-a"></span>
-                  <p><strong>A</strong> 有承诺，无跟进</p>
-                </div>
-                <div>
-                  <span class="legend-dot legend-b"></span>
-                  <p><strong>B</strong> 有行动，无单项绩效</p>
-                </div>
-                <div>
                   <span class="legend-dot legend-c"></span>
-                  <p><strong>C</strong> 有绩效，无行动佐证</p>
+                  <p><strong>C</strong> Commitment · 承诺无跟进</p>
+                </div>
+                <div>
+                  <span class="legend-dot legend-a"></span>
+                  <p><strong>A</strong> Action · 行动缺结果</p>
+                </div>
+                <div>
+                  <span class="legend-dot legend-p"></span>
+                  <p><strong>P</strong> Performance · 绩效缺支撑</p>
                 </div>
               </div>
 
@@ -357,7 +357,7 @@
               <article>
                 <strong>14 / 14</strong>
                 <span>规则防退化回归</span>
-                <small>覆盖 A/B/C、口号、未来计划、外部目标等边界</small>
+                <small>覆盖 C/A/P、口号、未来计划、外部目标等边界</small>
               </article>
               <article>
                 <strong>484 页</strong>
@@ -508,14 +508,14 @@
                 <button type="button" data-chain-filter="complete">
                   完整 <strong>0</strong>
                 </button>
+                <button type="button" data-chain-filter="C">
+                  C <strong>0</strong>
+                </button>
                 <button type="button" data-chain-filter="A">
                   A <strong>0</strong>
                 </button>
-                <button type="button" data-chain-filter="B">
-                  B <strong>0</strong>
-                </button>
-                <button type="button" data-chain-filter="C">
-                  C <strong>0</strong>
+                <button type="button" data-chain-filter="P">
+                  P <strong>0</strong>
                 </button>
               </div>
             </div>
@@ -892,7 +892,7 @@
         </div>
         <div>
           <dt>规则分析</dt>
-          <dd>证据链规则分析器 v0.4，负责候选分类、原文定位、关联与 A/B/C 断点生成。</dd>
+          <dd>证据链规则分析器 v0.5，负责候选分类、原文定位、关联与 C/A/P 断点生成。</dd>
         </div>
         <div>
           <dt>大模型复核</dt>

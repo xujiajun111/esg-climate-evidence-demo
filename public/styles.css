@@ -1005,17 +1005,17 @@ svg {
   font-size: 9px;
 }
 
-.legend-a strong {
-  color: #8e352f;
-  background: #f7ded9;
+.legend-c strong {
+  color: #176b55;
+  background: #dcefe6;
 }
 
-.legend-b strong {
+.legend-a strong {
   color: #985c19;
   background: #f8e4c8;
 }
 
-.legend-c strong {
+.legend-p strong {
   color: #40617a;
   background: #dfebf2;
 }
@@ -1026,15 +1026,15 @@ svg {
   border-radius: 50%;
 }
 
-.legend-a {
-  background: var(--red);
+.legend-c {
+  background: var(--green);
 }
 
-.legend-b {
+.legend-a {
   background: var(--amber);
 }
 
-.legend-c {
+.legend-p {
   background: var(--blue);
 }
 
@@ -2800,17 +2800,17 @@ svg {
   font-weight: 700;
 }
 
-.breakpoint-a .breakpoint-code {
-  color: #9d3c32;
-  background: #f7e1dc;
+.breakpoint-c .breakpoint-code {
+  color: #176b55;
+  background: #dcefe6;
 }
 
-.breakpoint-b .breakpoint-code {
+.breakpoint-a .breakpoint-code {
   color: #985c19;
   background: #f8e6ca;
 }
 
-.breakpoint-c .breakpoint-code {
+.breakpoint-p .breakpoint-code {
   color: #436479;
   background: #e2edf3;
 }
