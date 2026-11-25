@@ -61,6 +61,7 @@ app.use(
   })
 );
 app.use("/docs", express.static(path.join(__dirname, "docs")));
+app.use("/samples", express.static(path.join(__dirname, "samples")));
 
 app.get("/api/health", (_request, response) => {
   response.json({

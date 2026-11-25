@@ -12,6 +12,9 @@ await fs.cp(path.join(root, "public"), dist, { recursive: true });
 await fs.cp(path.join(root, "docs"), path.join(dist, "docs"), {
   recursive: true
 });
+await fs.cp(path.join(root, "samples"), path.join(dist, "samples"), {
+  recursive: true
+});
 await fs.writeFile(path.join(dist, ".nojekyll"), "");
 
 console.log("Static GitHub Pages bundle created in dist/");

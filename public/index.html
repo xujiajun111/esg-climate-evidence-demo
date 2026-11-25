@@ -85,6 +85,15 @@
             断点提示
             <span class="nav-step">06</span>
           </a>
+          <a class="nav-item" href="#triage-section">
+            <span class="nav-icon">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M4 19V9M10 19V5M16 19v-7M22 19H2M5 6l5 2 5-4 4 1" />
+              </svg>
+            </span>
+            复核优化
+            <span class="nav-step">07</span>
+          </a>
         </nav>
 
         <div class="sidebar-note">
@@ -139,8 +148,11 @@
             </div>
             <div class="heading-meta">
               <span>DEMO</span>
-              <strong>v0.8</strong>
+              <strong>v0.9</strong>
               <small>当前阶段：证据链分析</small>
+              <button class="button button-dark finals-demo-button" id="start-finals-demo-button" type="button">
+                5 分钟评审演示
+              </button>
             </div>
           </section>
 
@@ -368,9 +380,14 @@
                 <strong>已知边界</strong>
                 表格与图表中的绩效可能漏抽；扫描页需要 OCR；跨年度承诺归并仍是候选结果；所有断点均需人工复核。
               </p>
-              <button class="text-button" id="open-methodology-button" type="button">
-                查看分析口径
-              </button>
+              <div class="quality-actions">
+                <button class="text-button" id="open-methodology-button" type="button">
+                  查看分析口径
+                </button>
+                <button class="text-button" id="open-ai-disclosure-button" type="button">
+                  AI 工具使用说明
+                </button>
+              </div>
             </div>
           </section>
 
@@ -611,6 +628,101 @@
             <div class="breakpoint-list" id="breakpoint-list"></div>
           </section>
 
+          <section class="triage-section" id="triage-section">
+            <div class="section-heading-row triage-heading">
+              <div class="section-title-group">
+                <span class="section-number">07</span>
+                <div>
+                  <p class="section-kicker">REVIEW PORTFOLIO OPTIMIZATION</p>
+                  <h2>有限复核时间下的优先级优化</h2>
+                  <p>
+                    将高价值证据缺口分配给人工作业时间，最大化风险覆盖，并与传统顺序审查和低置信度排序比较。
+                  </p>
+                </div>
+              </div>
+              <span class="triage-model-badge">0/1 背包 · 精确求解</span>
+            </div>
+
+            <div class="triage-layout">
+              <aside class="triage-model-card">
+                <p class="section-kicker">MODEL CARD</p>
+                <h3>决策模型</h3>
+                <div class="formula-block">
+                  <span>目标</span>
+                  <strong>max Σ v<sub>i</sub>x<sub>i</sub></strong>
+                  <span>约束</span>
+                  <strong>Σ t<sub>i</sub>x<sub>i</sub> ≤ B</strong>
+                  <span>变量</span>
+                  <strong>x<sub>i</sub> ∈ {0, 1}</strong>
+                </div>
+                <dl>
+                  <div><dt>x<sub>i</sub></dt><dd>证据任务是否进入本轮复核队列</dd></div>
+                  <div><dt>v<sub>i</sub></dt><dd>断点风险 × 时限紧迫度 × 未决状态价值</dd></div>
+                  <div><dt>t<sub>i</sub></dt><dd>完成该任务预计需要的人工分钟数</dd></div>
+                  <div><dt>B</dt><dd>本轮可投入的总复核时间</dd></div>
+                </dl>
+                <p class="model-assumption">
+                  假设任务价值可按风险暴露量化，人工时间可独立估计；稳健模式使用价值下界，进取模式使用价值上界。
+                </p>
+              </aside>
+
+              <div class="triage-main">
+                <div class="triage-controls">
+                  <label class="budget-control">
+                    <span>本轮复核预算</span>
+                    <strong><output id="triage-budget-output">60</output> 分钟</strong>
+                    <input id="triage-budget-input" type="range" min="30" max="180" step="10" value="60" />
+                  </label>
+                  <div class="risk-mode-control" role="group" aria-label="风险偏好">
+                    <button type="button" data-risk-mode="robust">稳健</button>
+                    <button class="is-active" type="button" data-risk-mode="expected">期望</button>
+                    <button type="button" data-risk-mode="opportunity">进取</button>
+                  </div>
+                </div>
+
+                <div class="triage-metrics" id="triage-metrics"></div>
+
+                <div class="triage-analysis-grid">
+                  <article class="triage-panel">
+                    <div class="triage-panel-heading">
+                      <div>
+                        <p class="section-kicker">BASELINE COMPARISON</p>
+                        <h3>基准方案对比</h3>
+                      </div>
+                      <small>同一预算下</small>
+                    </div>
+                    <div class="baseline-table" id="baseline-comparison"></div>
+                  </article>
+
+                  <article class="triage-panel">
+                    <div class="triage-panel-heading">
+                      <div>
+                        <p class="section-kicker">SENSITIVITY</p>
+                        <h3>复核预算敏感性</h3>
+                      </div>
+                      <small>当前风险偏好</small>
+                    </div>
+                    <div class="sensitivity-chart" id="triage-sensitivity"></div>
+                  </article>
+                </div>
+
+                <article class="triage-panel priority-panel">
+                  <div class="triage-panel-heading">
+                    <div>
+                      <p class="section-kicker">OPTIMIZED QUEUE</p>
+                      <h3>建议复核队列</h3>
+                    </div>
+                    <span id="triage-robustness">稳健性计算中</span>
+                  </div>
+                  <div class="priority-list" id="triage-priority-list"></div>
+                </article>
+              </div>
+            </div>
+            <p class="triage-disclaimer">
+              本模块为基于当前提取结果的决策仿真，用于展示复核资源分配方法；不代表企业实际风险结论，也不替代人工判断。
+            </p>
+          </section>
+
           <footer class="page-footer">
             <p>碳迹智核 · ESG 气候信息披露证据链 Demo</p>
             <p>本工具仅输出文本层面的核查线索，不判断企业漂绿、造假或违规。</p>
@@ -760,6 +872,70 @@
         </div>
       </form>
     </dialog>
+
+    <dialog class="compact-dialog disclosure-dialog" id="ai-disclosure-dialog">
+      <div class="dialog-header">
+        <div>
+          <p class="section-kicker">AI TOOL DISCLOSURE · v1.0</p>
+          <h2>AI 工具使用说明</h2>
+        </div>
+        <button class="icon-button" id="close-ai-disclosure-button" type="button" aria-label="关闭 AI 工具使用说明">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="m6 6 12 12M18 6 6 18" />
+          </svg>
+        </button>
+      </div>
+      <div class="disclosure-list">
+        <div>
+          <dt>文本抽取</dt>
+          <dd>PDF.js 6.5.438，仅在浏览器本地读取 PDF 文字层，不上传原始文件。</dd>
+        </div>
+        <div>
+          <dt>规则分析</dt>
+          <dd>证据链规则分析器 v0.4，负责候选分类、原文定位、关联与 A/B/C 断点生成。</dd>
+        </div>
+        <div>
+          <dt>大模型复核</dt>
+          <dd>可选 OpenAI 兼容接口。当前公网默认未启用外部大模型，启用后仅发送候选和必要原文片段。</dd>
+        </div>
+        <div>
+          <dt>人工复核</dt>
+          <dd>所有候选默认进入待复核状态，支持确认、存疑、排除，并将结果写入审计导出。</dd>
+        </div>
+        <div>
+          <dt>风险控制</dt>
+          <dd>AI 建议不直接定性；接口失败回退规则；原文、页码、分析模式和复核记录全程保留。</dd>
+        </div>
+      </div>
+      <div class="dialog-actions">
+        <a class="button button-quiet" href="./docs/ai-disclosure.md" target="_blank" rel="noreferrer">
+          打开完整披露材料
+        </a>
+        <button class="button button-primary" id="copy-ai-disclosure-button" type="button">
+          复制披露摘要
+        </button>
+      </div>
+    </dialog>
+
+    <aside class="presenter-guide" id="presenter-guide" hidden aria-live="polite">
+      <div class="presenter-top">
+        <span id="presenter-step">01 / 07</span>
+        <button id="exit-presenter-button" type="button" aria-label="退出评审演示">退出</button>
+      </div>
+      <h3 id="presenter-title">业务问题</h3>
+      <p id="presenter-copy"></p>
+      <div class="presenter-tip">
+        <strong>现场动作</strong>
+        <span id="presenter-action"></span>
+      </div>
+      <div class="presenter-progress">
+        <i id="presenter-progress-bar"></i>
+      </div>
+      <div class="presenter-actions">
+        <button class="button button-quiet" id="presenter-prev-button" type="button">上一步</button>
+        <button class="button button-primary" id="presenter-next-button" type="button">下一步</button>
+      </div>
+    </aside>
 
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
     <script src="./vendor/pdf.min.js"></script>

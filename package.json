@@ -12,7 +12,8 @@
     "test:chain": "node tests/chain-model-regression.mjs",
     "test:layout": "node tests/text-layout-regression.mjs",
     "test:multi": "node tests/multi-document-regression.mjs",
-    "test": "npm run test:analyzer && npm run test:chain && npm run test:layout && npm run test:multi"
+    "test:triage": "node tests/triage-model-regression.mjs",
+    "test": "npm run test:analyzer && npm run test:chain && npm run test:layout && npm run test:multi && npm run test:triage"
   },
   "engines": {
     "node": ">=20"

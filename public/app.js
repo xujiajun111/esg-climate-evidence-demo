@@ -9,6 +9,7 @@ import {
   findChainForEvidence
 } from "./chain-model.js";
 import { extractPdfInBrowser } from "./pdf-client.js";
+import { buildReviewPortfolio } from "./triage-model.js";
 
 const MAX_PDF_MB = 200;
 
@@ -211,7 +212,12 @@ const state = {
   sourceFiles: [],
   pdfDocumentCache: new Map(),
   sourceViewer: null,
-  aiSettings: null
+  aiSettings: null,
+  triageBudget: 60,
+  triageRiskMode: "expected",
+  triagePortfolio: null,
+  presenterStep: 0,
+  builtInDemoLoading: false
 };
 
 const elements = {
@@ -293,6 +299,39 @@ const elements = {
   clearAiSettingsButton: document.querySelector("#clear-ai-settings-button"),
   qualityEngineStatus: document.querySelector("#quality-engine-status"),
   openMethodologyButton: document.querySelector("#open-methodology-button"),
+  openAiDisclosureButton: document.querySelector(
+    "#open-ai-disclosure-button"
+  ),
+  aiDisclosureDialog: document.querySelector("#ai-disclosure-dialog"),
+  closeAiDisclosureButton: document.querySelector(
+    "#close-ai-disclosure-button"
+  ),
+  copyAiDisclosureButton: document.querySelector(
+    "#copy-ai-disclosure-button"
+  ),
+  triageSection: document.querySelector("#triage-section"),
+  triageBudgetInput: document.querySelector("#triage-budget-input"),
+  triageBudgetOutput: document.querySelector("#triage-budget-output"),
+  triageMetrics: document.querySelector("#triage-metrics"),
+  baselineComparison: document.querySelector("#baseline-comparison"),
+  triageSensitivity: document.querySelector("#triage-sensitivity"),
+  triagePriorityList: document.querySelector("#triage-priority-list"),
+  triageRobustness: document.querySelector("#triage-robustness"),
+  riskModeButtons: [
+    ...document.querySelectorAll("[data-risk-mode]")
+  ],
+  startFinalsDemoButton: document.querySelector(
+    "#start-finals-demo-button"
+  ),
+  presenterGuide: document.querySelector("#presenter-guide"),
+  presenterStepLabel: document.querySelector("#presenter-step"),
+  presenterTitle: document.querySelector("#presenter-title"),
+  presenterCopy: document.querySelector("#presenter-copy"),
+  presenterAction: document.querySelector("#presenter-action"),
+  presenterProgressBar: document.querySelector("#presenter-progress-bar"),
+  presenterPrevButton: document.querySelector("#presenter-prev-button"),
+  presenterNextButton: document.querySelector("#presenter-next-button"),
+  exitPresenterButton: document.querySelector("#exit-presenter-button"),
   toast: document.querySelector("#toast"),
   summaryFootnoteText: document.querySelector("#summary-footnote-text"),
   navItems: [...document.querySelectorAll(".nav-item")],
@@ -314,6 +353,7 @@ function initialize() {
   bindTextEvents();
   bindDialogEvents();
   bindReviewAndExportEvents();
+  bindTriageAndPresentationEvents();
   bindSourceViewerEvents();
   bindAiSettingsEvents();
   bindNavigationEvents();
@@ -513,6 +553,321 @@ function bindReviewAndExportEvents() {
   });
 }
 
+function bindTriageAndPresentationEvents() {
+  elements.triageBudgetInput.addEventListener("input", (event) => {
+    state.triageBudget = Number(event.target.value);
+    elements.triageBudgetOutput.textContent = String(state.triageBudget);
+    renderTriage(state.analysis);
+  });
+
+  for (const button of elements.riskModeButtons) {
+    button.addEventListener("click", () => {
+      state.triageRiskMode = button.dataset.riskMode || "expected";
+      elements.riskModeButtons.forEach((candidate) => {
+        candidate.classList.toggle(
+          "is-active",
+          candidate.dataset.riskMode === state.triageRiskMode
+        );
+      });
+      renderTriage(state.analysis);
+    });
+  }
+
+  elements.openAiDisclosureButton.addEventListener("click", () => {
+    elements.aiDisclosureDialog.showModal();
+  });
+  elements.closeAiDisclosureButton.addEventListener("click", () => {
+    elements.aiDisclosureDialog.close();
+  });
+  elements.aiDisclosureDialog.addEventListener("click", (event) => {
+    if (event.target === elements.aiDisclosureDialog) {
+      elements.aiDisclosureDialog.close();
+    }
+  });
+  elements.copyAiDisclosureButton.addEventListener("click", async () => {
+    await copyText(aiDisclosureSummary());
+    showToast("AI 工具披露摘要已复制");
+  });
+
+  elements.startFinalsDemoButton.addEventListener("click", startFinalsDemo);
+  elements.presenterPrevButton.addEventListener("click", () => {
+    showPresenterStep(state.presenterStep - 1);
+  });
+  elements.presenterNextButton.addEventListener("click", () => {
+    if (state.presenterStep >= presenterSteps.length - 1) {
+      exitPresenter();
+      return;
+    }
+    showPresenterStep(state.presenterStep + 1);
+  });
+  elements.exitPresenterButton.addEventListener("click", exitPresenter);
+}
+
+const presenterSteps = [
+  {
+    title: "业务问题与决策目标",
+    target: "#workbench",
+    copy:
+      "ESG 分析人员不缺报告，缺的是在有限复核时间内判断哪些证据链最值得先查。系统把非结构化披露转成可追溯证据任务。",
+    action: "指出上传入口、浏览器本地处理和“复核时间有限”的业务约束。"
+  },
+  {
+    title: "从文本到证据链",
+    target: "#chain-section",
+    copy:
+      "当前结果来自内置样例 PDF 的实际运行。系统按承诺、行动、绩效建立证据链，A/B/C 断点只是待核线索，不直接给企业定性。",
+    action: "切换完整、A、B、C 筛选，指出一条完整链路和一条断裂链路。"
+  },
+  {
+    title: "原文追溯与人工复核",
+    target: "#commitment-section",
+    copy:
+      "每条结果保留原文、报告年份和页码。人工可查看原文高亮，并标记确认、存疑或排除。",
+    action: "打开一条“查看原文”，说明扫描页和复杂表格仍需人工核对。"
+  },
+  {
+    title: "运筹模型：复核组合优化",
+    target: "#triage-section",
+    copy:
+      "决策变量是任务是否进入复核队列，目标是在时间预算内最大化风险覆盖，约束是人工分钟数不能超预算。",
+    action: "把预算从 90 分钟调到 60 分钟，指出优化队列会自动调整。"
+  },
+  {
+    title: "基准对比与敏感性",
+    target: ".triage-analysis-grid",
+    copy:
+      "同一预算下，将精确 0/1 背包解与文档顺序、低置信度优先和风险贪心比较，并展示预算变化下的覆盖曲线。",
+    action: "指出优化方案相对最优基准提升的百分点，以及预算增加后的边际收益。"
+  },
+  {
+    title: "可信度、AI 与边界",
+    target: "#quality-section",
+    copy:
+      "14/14 是防退化回归，不等于真实总体准确率。AI 只提供语义建议，失败自动回退，最终由人工确认。",
+    action: "打开 AI 工具使用说明，说明工具版本、输入范围、人工复核和风险控制。"
+  },
+  {
+    title: "审计导出与落地",
+    target: "#open-export-button",
+    copy:
+      "结果可导出 JSON/CSV，包含原文、页码、关联关系、复核状态和 AI 建议，便于 ESG 底稿或审阅系统接入。",
+    action: "点击右上角导出结果，说明本地部署与私有化模型路径。"
+  }
+];
+
+async function startFinalsDemo() {
+  if (state.builtInDemoLoading) return;
+  state.builtInDemoLoading = true;
+  elements.startFinalsDemoButton.disabled = true;
+  elements.startFinalsDemoButton.textContent = "正在加载演示报告…";
+
+  try {
+    const response = await fetch("./samples/climate-report-sample.pdf");
+    if (!response.ok) {
+      throw new Error("内置演示报告读取失败");
+    }
+    const blob = await response.blob();
+    const file = new File([blob], "climate-report-sample.pdf", {
+      type: "application/pdf",
+      lastModified: Date.now()
+    });
+    state.pendingFiles = [file];
+    renderFileQueue();
+    await handlePdfFiles([file]);
+    elements.dataModeBadge.textContent =
+      state.analysisMode === "ai_enhanced"
+        ? "内置样例 · AI 实际运行"
+        : "内置样例 · 实际运行";
+  } catch (error) {
+    state.analysis = sampleAnalysis;
+    state.analysisMode = "sample";
+    renderAnalysis(sampleAnalysis);
+    showToast(`${error.message}，已切换到内置结果演示`);
+  } finally {
+    state.builtInDemoLoading = false;
+    elements.startFinalsDemoButton.disabled = false;
+    elements.startFinalsDemoButton.textContent = "5 分钟评审演示";
+  }
+
+  showPresenterStep(0);
+}
+
+function showPresenterStep(index) {
+  const boundedIndex = Math.min(
+    presenterSteps.length - 1,
+    Math.max(0, Number(index) || 0)
+  );
+  state.presenterStep = boundedIndex;
+  const step = presenterSteps[boundedIndex];
+  elements.presenterGuide.hidden = false;
+  elements.presenterStepLabel.textContent = `${String(
+    boundedIndex + 1
+  ).padStart(2, "0")} / ${String(presenterSteps.length).padStart(2, "0")}`;
+  elements.presenterTitle.textContent = step.title;
+  elements.presenterCopy.textContent = step.copy;
+  elements.presenterAction.textContent = step.action;
+  elements.presenterProgressBar.style.width = `${
+    ((boundedIndex + 1) / presenterSteps.length) * 100
+  }%`;
+  elements.presenterPrevButton.disabled = boundedIndex === 0;
+  elements.presenterNextButton.textContent =
+    boundedIndex === presenterSteps.length - 1 ? "结束演示" : "下一步";
+
+  const target = document.querySelector(step.target);
+  if (target) {
+    target.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+}
+
+function exitPresenter() {
+  elements.presenterGuide.hidden = true;
+  state.presenterStep = 0;
+  showToast("已退出评审演示模式");
+}
+
+function aiDisclosureSummary() {
+  return [
+    "AI 工具使用说明 v1.0",
+    "文本抽取：PDF.js 6.5.438，浏览器本地处理文字层，不上传原始 PDF。",
+    "规则分析：证据链规则分析器 v0.4，生成候选、关联和 A/B/C 断点。",
+    "大模型复核：可选 OpenAI 兼容接口；当前公网默认未启用外部大模型。",
+    "人工复核：AI 建议不直接定性，所有候选支持确认、存疑、排除并进入审计导出。",
+    "风险控制：接口失败自动回退规则；保留原文、页码、分析模式与复核记录。"
+  ].join("\n");
+}
+
+function renderTriage(analysis) {
+  const portfolio = buildReviewPortfolio(analysis, {
+    budget: state.triageBudget,
+    riskMode: state.triageRiskMode
+  });
+  state.triagePortfolio = portfolio;
+
+  if (portfolio.tasks.length === 0) {
+    elements.triageMetrics.innerHTML = "";
+    elements.baselineComparison.innerHTML =
+      '<p class="triage-empty">当前没有可分配的证据任务。</p>';
+    elements.triageSensitivity.innerHTML = "";
+    elements.triagePriorityList.innerHTML =
+      '<p class="triage-empty">上传报告并生成证据链后，系统将给出复核优化队列。</p>';
+    elements.triageRobustness.textContent = "等待证据任务";
+    return;
+  }
+
+  const bestBaseline = portfolio.baselines.reduce(
+    (best, baseline) =>
+      baseline.coverage > best.coverage ? baseline : best,
+    portfolio.baselines[0]
+  );
+  const coverageLift = Math.max(
+    0,
+    (portfolio.optimized.coverage - bestBaseline.coverage) * 100
+  );
+
+  elements.triageMetrics.innerHTML = [
+    metricCard(
+      `${Math.round(portfolio.optimized.selectedCount)}`,
+      "建议复核任务",
+      `预算 ${portfolio.optimized.budget} 分钟`
+    ),
+    metricCard(
+      formatPercent(portfolio.optimized.coverage),
+      "预计风险覆盖",
+      `相对最优基准 +${coverageLift.toFixed(1)} pp`
+    ),
+    metricCard(
+      formatPercent(portfolio.optimized.highRiskCoverage),
+      "高风险任务覆盖",
+      `利用预算 ${formatPercent(portfolio.optimized.utilization)}`
+    ),
+    metricCard(
+      `${portfolio.optimized.effort} 分钟`,
+      "实际人工投入",
+      `剩余 ${portfolio.optimized.budget - portfolio.optimized.effort} 分钟`
+    )
+  ].join("");
+
+  const rows = [
+    ...portfolio.baselines,
+    { ...portfolio.optimized, label: "优化组合", strategy: "optimized" }
+  ];
+  elements.baselineComparison.innerHTML = rows
+    .map(
+      (entry) => `
+        <div class="baseline-row${
+          entry.strategy === "optimized" ? " is-optimized" : ""
+        }">
+          <strong>${escapeHtml(entry.label)}</strong>
+          <span class="baseline-track"><i style="width:${Math.round(
+            entry.coverage * 100
+          )}%"></i></span>
+          <b>${Math.round(entry.coverage * 100)}%</b>
+        </div>
+      `
+    )
+    .join("");
+
+  elements.triageSensitivity.innerHTML = portfolio.sensitivity
+    .map(
+      (entry) => `
+        <div class="sensitivity-column">
+          <div class="sensitivity-bars" title="优化 ${Math.round(
+            entry.optimizedCoverage * 100
+          )}% / 基准 ${Math.round(entry.baselineCoverage * 100)}%">
+            <i style="height:${Math.max(
+              3,
+              Math.round(entry.baselineCoverage * 72)
+            )}px"></i>
+            <i class="is-optimized" style="height:${Math.max(
+              3,
+              Math.round(entry.optimizedCoverage * 72)
+            )}px"></i>
+          </div>
+          <small>${entry.budget} 分</small>
+        </div>
+      `
+    )
+    .join("");
+
+  elements.triagePriorityList.innerHTML = portfolio.optimized.selected
+    .slice(0, 8)
+    .map(
+      (task, index) => `
+        <div class="priority-item">
+          <span class="priority-rank">${String(index + 1).padStart(2, "0")}</span>
+          <div class="priority-copy">
+            <strong>${escapeHtml(task.sourceId)} · ${escapeHtml(task.title)}</strong>
+            <small>${escapeHtml(
+              task.sourceType === "breakpoint"
+                ? `${task.type} 类断点`
+                : `${task.type} 证据核验`
+            )} · ${escapeHtml(task.reviewStatus)}</small>
+          </div>
+          <span class="priority-risk"><strong>${Math.round(
+            (task.riskScore / 1.2) * 100
+          )}</strong>风险指数</span>
+          <span class="priority-time"><strong>${task.effort}</strong>分钟</span>
+        </div>
+      `
+    )
+    .join("");
+
+  elements.triageRobustness.textContent =
+    `${portfolio.robustness.scenarioCount} 次权重扰动 · 平均选择重合 ` +
+    `${formatPercent(portfolio.robustness.averageOverlap)} · 最差覆盖 ` +
+    `${formatPercent(portfolio.robustness.minimumCoverage)}`;
+}
+
+function metricCard(value, label, note) {
+  return `
+    <article class="triage-metric">
+      <strong>${escapeHtml(value)}</strong>
+      <span>${escapeHtml(label)}</span>
+      <small>${escapeHtml(note)}</small>
+    </article>
+  `;
+}
+
 function applyReviewStatus(evidenceId, status) {
   const element = state.analysis.elements.find(
     (candidate) => candidate.id === evidenceId
@@ -647,6 +1002,12 @@ function buildAuditExport() {
     if (element.element_type === "action") counts.actions += 1;
     if (element.element_type === "performance") counts.performances += 1;
   }
+  const triage =
+    state.triagePortfolio ||
+    buildReviewPortfolio(state.analysis, {
+      budget: state.triageBudget,
+      riskMode: state.triageRiskMode
+    });
 
   return {
     schema_version: "1.0",
@@ -657,6 +1018,27 @@ function buildAuditExport() {
     ai_review: state.analysis.ai_review || null,
     company: state.analysis.company || null,
     counts,
+    review_portfolio: {
+      budget_minutes: triage.budget,
+      risk_mode: triage.riskMode,
+      optimized: {
+        selected_count: triage.optimized.selectedCount,
+        effort_minutes: triage.optimized.effort,
+        coverage: triage.optimized.coverage,
+        high_risk_coverage: triage.optimized.highRiskCoverage,
+        objective_value: triage.optimized.objectiveValue
+      },
+      baselines: triage.baselines.map((baseline) => ({
+        strategy: baseline.strategy,
+        label: baseline.label,
+        selected_count: baseline.selectedCount,
+        effort_minutes: baseline.effort,
+        coverage: baseline.coverage
+      })),
+      selected_tasks: triage.optimized.selected,
+      sensitivity: triage.sensitivity,
+      robustness: triage.robustness
+    },
     elements: state.analysis.elements.map((element) => ({
       ...element,
       review_status: reviewStatusMeta(element.review_status).label
@@ -2083,6 +2465,7 @@ function renderAnalysis(analysis) {
   renderBreakpoints(analysis.breakpoints);
   renderInsightPanel(analysis);
   renderChainExplorer(analysis);
+  renderTriage(analysis);
   updateSummary({
     commitments: commitments.length,
     actions: actions.length,
