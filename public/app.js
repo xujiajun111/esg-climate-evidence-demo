@@ -192,6 +192,7 @@ const sampleAnalysis = {
 
 const state = {
   analysis: sampleAnalysis,
+  analysisMode: "sample",
   extraction: null,
   currentText: "",
   textView: "clean",
@@ -206,7 +207,11 @@ const state = {
   selectedEvidenceId: null,
   showAllActions: false,
   showAllPerformances: false,
-  pendingFiles: []
+  pendingFiles: [],
+  sourceFiles: [],
+  pdfDocumentCache: new Map(),
+  sourceViewer: null,
+  aiSettings: null
 };
 
 const elements = {
@@ -253,6 +258,41 @@ const elements = {
   copySchemaButton: document.querySelector("#copy-schema-button"),
   schemaDialog: document.querySelector("#schema-dialog"),
   schemaCode: document.querySelector("#schema-code"),
+  openExportButton: document.querySelector("#open-export-button"),
+  exportDialog: document.querySelector("#export-dialog"),
+  closeExportDialogButton: document.querySelector(
+    "#close-export-dialog-button"
+  ),
+  exportJsonButton: document.querySelector("#export-json-button"),
+  exportCsvButton: document.querySelector("#export-csv-button"),
+  sourceDialog: document.querySelector("#source-dialog"),
+  sourceDialogTitle: document.querySelector("#source-dialog-title"),
+  sourceDialogMeta: document.querySelector("#source-dialog-meta"),
+  closeSourceDialogButton: document.querySelector(
+    "#close-source-dialog-button"
+  ),
+  sourcePrevPage: document.querySelector("#source-prev-page"),
+  sourceNextPage: document.querySelector("#source-next-page"),
+  sourcePageIndicator: document.querySelector("#source-page-indicator"),
+  sourceCanvasShell: document.querySelector("#source-canvas-shell"),
+  sourcePdfCanvas: document.querySelector("#source-pdf-canvas"),
+  sourceHighlightLayer: document.querySelector(
+    "#source-highlight-layer"
+  ),
+  sourceLoading: document.querySelector("#source-loading"),
+  sourceQuote: document.querySelector("#source-quote"),
+  sourceEvidenceMeta: document.querySelector("#source-evidence-meta"),
+  openAiSettingsButton: document.querySelector("#open-ai-settings-button"),
+  aiDialog: document.querySelector("#ai-dialog"),
+  closeAiDialogButton: document.querySelector("#close-ai-dialog-button"),
+  aiSettingsForm: document.querySelector("#ai-settings-form"),
+  aiEnabledInput: document.querySelector("#ai-enabled-input"),
+  aiEndpointInput: document.querySelector("#ai-endpoint-input"),
+  aiModelInput: document.querySelector("#ai-model-input"),
+  aiKeyInput: document.querySelector("#ai-key-input"),
+  clearAiSettingsButton: document.querySelector("#clear-ai-settings-button"),
+  qualityEngineStatus: document.querySelector("#quality-engine-status"),
+  openMethodologyButton: document.querySelector("#open-methodology-button"),
   toast: document.querySelector("#toast"),
   summaryFootnoteText: document.querySelector("#summary-footnote-text"),
   navItems: [...document.querySelectorAll(".nav-item")],
@@ -269,13 +309,18 @@ const elements = {
 initialize();
 
 function initialize() {
+  loadAiSettings();
   bindUploadEvents();
   bindTextEvents();
   bindDialogEvents();
+  bindReviewAndExportEvents();
+  bindSourceViewerEvents();
+  bindAiSettingsEvents();
   bindNavigationEvents();
   bindChainEvents();
   bindListEvents();
   renderAnalysis(state.analysis);
+  updateEngineStatus();
 }
 
 function bindUploadEvents() {
@@ -284,10 +329,8 @@ function bindUploadEvents() {
     elements.pdfInput.click();
   });
 
-  elements.dropzone.addEventListener("click", () => elements.pdfInput.click());
-  elements.dropzone.addEventListener("keydown", (event) => {
-    if (event.key === "Enter" || event.key === " ") {
-      event.preventDefault();
+  elements.dropzone.addEventListener("click", (event) => {
+    if (!event.target.closest("button")) {
       elements.pdfInput.click();
     }
   });
@@ -353,6 +396,9 @@ function bindUploadEvents() {
     elements.toggleTextButton.disabled = true;
     elements.toggleTextButton.textContent = "查看文本抽取过程";
     state.pendingFiles = [];
+    state.sourceFiles = [];
+    clearPdfDocumentCache();
+    state.analysisMode = "sample";
     renderFileQueue();
     state.analysis = sampleAnalysis;
     elements.dataModeBadge.textContent = "演示数据";
@@ -415,6 +461,874 @@ function bindTextEvents() {
     URL.revokeObjectURL(url);
     showToast("TXT 文件已生成");
   });
+}
+
+function bindReviewAndExportEvents() {
+  document.addEventListener("click", (event) => {
+    const reviewButton = event.target.closest("[data-review-evidence]");
+    if (reviewButton) {
+      event.preventDefault();
+      applyReviewStatus(
+        reviewButton.dataset.reviewEvidence,
+        reviewButton.dataset.reviewStatus
+      );
+      return;
+    }
+
+    const sourceButton = event.target.closest("[data-open-source-id]");
+    if (sourceButton) {
+      event.preventDefault();
+      openSourceViewer(sourceButton.dataset.openSourceId);
+    }
+  });
+
+  elements.openExportButton.addEventListener("click", () => {
+    if (!state.analysis?.elements?.length) {
+      showToast("当前没有可导出的审查结果");
+      return;
+    }
+    elements.exportDialog.showModal();
+  });
+
+  elements.closeExportDialogButton.addEventListener("click", () => {
+    elements.exportDialog.close();
+  });
+
+  elements.exportDialog.addEventListener("click", (event) => {
+    if (event.target === elements.exportDialog) {
+      elements.exportDialog.close();
+    }
+  });
+
+  elements.exportJsonButton.addEventListener("click", () => {
+    exportAnalysis("json");
+  });
+
+  elements.exportCsvButton.addEventListener("click", () => {
+    exportAnalysis("csv");
+  });
+
+  elements.openMethodologyButton.addEventListener("click", () => {
+    window.open("./docs/analysis-quality.md", "_blank", "noopener,noreferrer");
+  });
+}
+
+function applyReviewStatus(evidenceId, status) {
+  const element = state.analysis.elements.find(
+    (candidate) => candidate.id === evidenceId
+  );
+  const breakpoint = state.analysis.breakpoints.find(
+    (candidate) => candidate.id === evidenceId
+  );
+  const target = element || breakpoint;
+
+  if (!target || !["已确认", "存疑", "已排除"].includes(status)) {
+    return;
+  }
+
+  target.review_status = status;
+  target.reviewed_at = new Date().toISOString();
+  target.review_source = "人工复核";
+  state.analysis.review_updated_at = target.reviewed_at;
+
+  renderAnalysis(state.analysis);
+  showToast(`${evidenceId} 已标记为“${status}”`);
+}
+
+function reviewStatusMeta(status) {
+  if (status === "已确认" || status === "已核") {
+    return { label: "已确认", className: "is-confirmed" };
+  }
+  if (status === "已排除") {
+    return { label: "已排除", className: "is-rejected" };
+  }
+  if (status === "存疑") {
+    return { label: "存疑", className: "is-doubtful" };
+  }
+  return { label: "待复核", className: "is-pending" };
+}
+
+function reviewTools(evidenceId, status, { canOpenSource = true } = {}) {
+  const meta = reviewStatusMeta(status);
+  return `
+    <div class="evidence-tools">
+      <button
+        class="evidence-tool-button"
+        type="button"
+        data-open-source-id="${escapeHtml(evidenceId)}"
+        ${canOpenSource ? "" : "disabled title=\"演示数据没有对应 PDF 原文\""}
+      >
+        查看原文
+      </button>
+      <button
+        class="evidence-tool-button${
+          meta.className === "is-confirmed" ? " is-confirmed" : ""
+        }"
+        type="button"
+        data-review-evidence="${escapeHtml(evidenceId)}"
+        data-review-status="已确认"
+      >
+        确认
+      </button>
+      <button
+        class="evidence-tool-button"
+        type="button"
+        data-review-evidence="${escapeHtml(evidenceId)}"
+        data-review-status="存疑"
+      >
+        存疑
+      </button>
+      <button
+        class="evidence-tool-button${
+          meta.className === "is-rejected" ? " is-rejected" : ""
+        }"
+        type="button"
+        data-review-evidence="${escapeHtml(evidenceId)}"
+        data-review-status="已排除"
+      >
+        排除
+      </button>
+      <span class="review-status ${meta.className}">${meta.label}</span>
+    </div>
+  `;
+}
+
+function aiReviewNote(target) {
+  if (!target?.ai_suggestion) {
+    return "";
+  }
+  const confidence =
+    Number.isFinite(Number(target.ai_confidence)) &&
+    target.ai_confidence !== null
+      ? ` · ${formatPercent(target.ai_confidence)}`
+      : "";
+  const rationale = target.ai_rationale
+    ? `：${escapeHtml(target.ai_rationale)}`
+    : "";
+  return `
+    <p class="ai-review-note">
+      <strong>AI 建议 ${escapeHtml(target.ai_suggestion)}${confidence}</strong>${rationale}
+    </p>
+  `;
+}
+
+function exportAnalysis(format) {
+  const payload = buildAuditExport();
+  const stamp = new Date().toISOString().slice(0, 10);
+  const baseName = `climate-evidence-audit-${stamp}`;
+
+  if (format === "json") {
+    downloadBlob(
+      JSON.stringify(payload, null, 2),
+      `${baseName}.json`,
+      "application/json;charset=utf-8"
+    );
+  } else {
+    downloadBlob(
+      toAuditCsv(payload),
+      `${baseName}.csv`,
+      "text/csv;charset=utf-8"
+    );
+  }
+
+  elements.exportDialog.close();
+  showToast(`${format.toUpperCase()} 审查结果已生成`);
+}
+
+function buildAuditExport() {
+  const counts = {
+    commitments: 0,
+    actions: 0,
+    performances: 0,
+    breakpoints: state.analysis.breakpoints.length
+  };
+  for (const element of state.analysis.elements) {
+    if (element.element_type === "commitment") counts.commitments += 1;
+    if (element.element_type === "action") counts.actions += 1;
+    if (element.element_type === "performance") counts.performances += 1;
+  }
+
+  return {
+    schema_version: "1.0",
+    export_type: "climate_evidence_audit",
+    generated_at: new Date().toISOString(),
+    analysis_mode: state.analysisMode,
+    analysis_engine: state.analysis.analysis_engine || "rule_preview",
+    ai_review: state.analysis.ai_review || null,
+    company: state.analysis.company || null,
+    counts,
+    elements: state.analysis.elements.map((element) => ({
+      ...element,
+      review_status: reviewStatusMeta(element.review_status).label
+    })),
+    breakpoints: state.analysis.breakpoints.map((breakpoint) => ({
+      ...breakpoint,
+      review_status: reviewStatusMeta(breakpoint.review_status).label
+    }))
+  };
+}
+
+function toAuditCsv(payload) {
+  const headers = [
+    "记录类型",
+    "编号",
+    "要素类型",
+    "标题或内容",
+    "原文",
+    "报告年份",
+    "页码",
+    "关联承诺",
+    "关联行动",
+    "规则匹配度",
+    "复核状态",
+    "复核时间",
+    "AI建议",
+    "AI理由"
+  ];
+  const rows = [];
+
+  for (const element of payload.elements) {
+    rows.push([
+      "要素",
+      element.id,
+      element.element_type,
+      element.content || "",
+      element.source_quote || "",
+      element.report_year ?? "",
+      element.page ?? "",
+      element.commitment_id || "",
+      element.action_id || "",
+      element.confidence ?? "",
+      element.review_status || "",
+      element.reviewed_at || "",
+      element.ai_suggestion || "",
+      element.ai_rationale || ""
+    ]);
+  }
+
+  for (const breakpoint of payload.breakpoints) {
+    rows.push([
+      "断点",
+      breakpoint.id,
+      breakpoint.type,
+      breakpoint.title || "",
+      breakpoint.description || "",
+      "",
+      "",
+      breakpoint.commitment_id || "",
+      "",
+      "",
+      breakpoint.review_status || "",
+      breakpoint.reviewed_at || "",
+      breakpoint.ai_suggestion || "",
+      breakpoint.ai_rationale || ""
+    ]);
+  }
+
+  return `\uFEFF${[headers, ...rows]
+    .map((row) => row.map(csvCell).join(","))
+    .join("\r\n")}`;
+}
+
+function csvCell(value) {
+  const text = String(value ?? "").replace(/\r?\n/g, " ");
+  return `"${text.replace(/"/g, '""')}"`;
+}
+
+function downloadBlob(content, filename, type) {
+  const blob = new Blob([content], { type });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+function bindSourceViewerEvents() {
+  elements.closeSourceDialogButton.addEventListener("click", () =>
+    elements.sourceDialog.close()
+  );
+  elements.sourceDialog.addEventListener("click", (event) => {
+    if (event.target === elements.sourceDialog) {
+      elements.sourceDialog.close();
+    }
+  });
+  elements.sourcePrevPage.addEventListener("click", () => {
+    if (!state.sourceViewer) return;
+    renderSourcePage(state.sourceViewer.page - 1);
+  });
+  elements.sourceNextPage.addEventListener("click", () => {
+    if (!state.sourceViewer) return;
+    renderSourcePage(state.sourceViewer.page + 1);
+  });
+}
+
+async function openSourceViewer(evidenceId) {
+  const element =
+    state.analysis.elements.find((candidate) => candidate.id === evidenceId) ||
+    findEvidenceForBreakpoint(evidenceId);
+
+  if (!element) {
+    showToast("没有找到对应证据");
+    return;
+  }
+  if (state.sourceFiles.length === 0) {
+    showToast("演示数据没有对应 PDF；上传报告后可直接定位原文");
+    return;
+  }
+
+  const sourceDocument = element.source_document || {};
+  const fileIndex = Number.isInteger(sourceDocument.index)
+    ? sourceDocument.index
+    : state.sourceFiles.findIndex(
+        (file) => file.name === sourceDocument.name
+      );
+  const file = state.sourceFiles[fileIndex] || state.sourceFiles[0];
+
+  if (!file) {
+    showToast("原始 PDF 文件已不在当前会话中，请重新上传");
+    return;
+  }
+
+  state.sourceViewer = {
+    file,
+    fileIndex: fileIndex >= 0 ? fileIndex : 0,
+    document: null,
+    page: Math.max(1, Number(element.page) || 1),
+    quote: element.source_quote || element.content || "",
+    evidence: element,
+    totalPages: 0
+  };
+
+  elements.sourceDialogTitle.textContent = `${element.id} · 原文核验`;
+  elements.sourceQuote.textContent = `“${state.sourceViewer.quote}”`;
+  elements.sourceEvidenceMeta.innerHTML = `
+    <div><dt>要素类型</dt><dd>${escapeHtml(element.element_type)}</dd></div>
+    <div><dt>报告年份</dt><dd>${escapeHtml(String(element.report_year || "待确认"))}</dd></div>
+    <div><dt>原文页码</dt><dd>p.${escapeHtml(String(element.page || "待确认"))}</dd></div>
+    <div><dt>复核状态</dt><dd>${reviewStatusMeta(element.review_status).label}</dd></div>
+  `;
+  elements.sourceDialogMeta.textContent = sourceDocument.name || file.name;
+  elements.sourceDialog.showModal();
+  await renderSourcePage(state.sourceViewer.page);
+}
+
+function findEvidenceForBreakpoint(breakpointId) {
+  const breakpoint = state.analysis.breakpoints.find(
+    (candidate) => candidate.id === breakpointId
+  );
+  if (!breakpoint) return null;
+  const ids = breakpoint.evidence_ids || [];
+  return (
+    state.analysis.elements.find((element) => ids.includes(element.id)) || null
+  );
+}
+
+async function getSourcePdfDocument(fileIndex) {
+  if (state.pdfDocumentCache.has(fileIndex)) {
+    return state.pdfDocumentCache.get(fileIndex);
+  }
+  if (!window.pdfjsLib) {
+    throw new Error("PDF.js 未加载");
+  }
+
+  const file = state.sourceFiles[fileIndex];
+  if (!file) {
+    throw new Error("原始 PDF 文件不存在");
+  }
+
+  const loadingTask = window.pdfjsLib.getDocument({
+    data: new Uint8Array(await file.arrayBuffer()),
+    isEvalSupported: false,
+    disableFontFace: true
+  });
+  const document = await loadingTask.promise;
+  state.pdfDocumentCache.set(fileIndex, { loadingTask, document });
+  return state.pdfDocumentCache.get(fileIndex);
+}
+
+async function renderSourcePage(requestedPage) {
+  if (!state.sourceViewer) return;
+
+  const cached = await getSourcePdfDocument(state.sourceViewer.fileIndex);
+  state.sourceViewer.document = cached.document;
+  state.sourceViewer.totalPages = cached.document.numPages;
+  const pageNumber = Math.min(
+    Math.max(1, Number(requestedPage) || 1),
+    cached.document.numPages
+  );
+  state.sourceViewer.page = pageNumber;
+
+  elements.sourceLoading.hidden = false;
+  elements.sourceLoading.textContent = `正在渲染第 ${pageNumber} 页…`;
+  elements.sourcePageIndicator.textContent = `${pageNumber} / ${cached.document.numPages}`;
+  elements.sourcePrevPage.disabled = pageNumber <= 1;
+  elements.sourceNextPage.disabled = pageNumber >= cached.document.numPages;
+
+  try {
+    const page = await cached.document.getPage(pageNumber);
+    const baseViewport = page.getViewport({ scale: 1 });
+    const availableWidth = Math.max(
+      320,
+      elements.sourceCanvasShell.clientWidth - 44
+    );
+    const scale = Math.min(1.7, availableWidth / baseViewport.width);
+    const viewport = page.getViewport({ scale });
+    const outputScale = Math.min(2, window.devicePixelRatio || 1);
+    const canvas = elements.sourcePdfCanvas;
+    const context = canvas.getContext("2d", { alpha: false });
+
+    canvas.width = Math.floor(viewport.width * outputScale);
+    canvas.height = Math.floor(viewport.height * outputScale);
+    canvas.style.width = `${Math.floor(viewport.width)}px`;
+    canvas.style.height = `${Math.floor(viewport.height)}px`;
+    context.setTransform(outputScale, 0, 0, outputScale, 0, 0);
+
+    await page.render({
+      canvasContext: context,
+      viewport
+    }).promise;
+
+    const textContent = await page.getTextContent();
+    const rects = findQuoteRectangles(
+      textContent.items,
+      viewport,
+      state.sourceViewer.quote
+    );
+    elements.sourceHighlightLayer.style.width = `${viewport.width}px`;
+    elements.sourceHighlightLayer.style.height = `${viewport.height}px`;
+    elements.sourceHighlightLayer.innerHTML = rects
+      .map(
+        (rect) => `
+          <span class="source-highlight" style="
+            left:${rect.left}px;
+            top:${rect.top}px;
+            width:${rect.width}px;
+            height:${rect.height}px;
+          "></span>
+        `
+      )
+      .join("");
+    page.cleanup();
+  } catch (error) {
+    elements.sourceHighlightLayer.innerHTML = "";
+    showToast(error.message || "原文渲染失败");
+  } finally {
+    elements.sourceLoading.hidden = true;
+  }
+}
+
+function findQuoteRectangles(items, viewport, quote) {
+  if (!window.pdfjsLib?.Util?.transform || !quote) {
+    return [];
+  }
+
+  const chars = [];
+  for (const item of items) {
+    if (!item?.str || !item.transform) continue;
+    const transformed = window.pdfjsLib.Util.transform(
+      viewport.transform,
+      item.transform
+    );
+    const height = Math.max(7, Math.hypot(transformed[2], transformed[3]) * 1.2);
+    const width = Math.max(1, (Number(item.width) || 0) * viewport.scale);
+    const text = String(item.str);
+    const charWidth = width / Math.max(1, text.length);
+
+    for (let index = 0; index < text.length; index += 1) {
+      const character = normalizeHighlightText(text[index]);
+      if (!character) continue;
+      chars.push({
+        character,
+        x: transformed[4] + index * charWidth,
+        y: transformed[5] - height,
+        width: charWidth,
+        height
+      });
+    }
+  }
+
+  const pageText = chars.map((char) => char.character).join("");
+  const target = normalizeHighlightText(quote);
+  const start = pageText.indexOf(target);
+  if (start < 0) {
+    return fallbackQuoteRectangles(items, viewport, quote);
+  }
+
+  const matched = chars.slice(start, start + target.length);
+  const lines = [];
+  for (const char of matched) {
+    let line = lines.find((candidate) => Math.abs(candidate.y - char.y) < 5);
+    if (!line) {
+      line = {
+        x: char.x,
+        y: char.y,
+        right: char.x + char.width,
+        height: char.height
+      };
+      lines.push(line);
+    } else {
+      line.x = Math.min(line.x, char.x);
+      line.right = Math.max(line.right, char.x + char.width);
+      line.height = Math.max(line.height, char.height);
+    }
+  }
+
+  return lines.map((line) => ({
+    left: roundCss(Math.max(0, line.x - 1.5)),
+    top: roundCss(Math.max(0, line.y - 1)),
+    width: roundCss(Math.min(viewport.width - line.x, line.right - line.x + 3)),
+    height: roundCss(line.height + 2)
+  }));
+}
+
+function fallbackQuoteRectangles(items, viewport, quote) {
+  const normalizedQuote = normalizeHighlightText(quote);
+  const matches = [];
+  for (const item of items) {
+    const text = normalizeHighlightText(item?.str || "");
+    if (text.length < 2 || !normalizedQuote.includes(text)) continue;
+    const transformed = window.pdfjsLib.Util.transform(
+      viewport.transform,
+      item.transform
+    );
+    const height = Math.max(8, Math.hypot(transformed[2], transformed[3]) * 1.2);
+    matches.push({
+      left: roundCss(transformed[4]),
+      top: roundCss(transformed[5] - height),
+      width: roundCss((Number(item.width) || 0) * viewport.scale + 2),
+      height: roundCss(height + 2)
+    });
+  }
+  return matches;
+}
+
+function normalizeHighlightText(value) {
+  return String(value || "")
+    .replace(/\s+/g, "")
+    .replace(/[“”"'‘’]/g, "");
+}
+
+function roundCss(value) {
+  return Math.round(Number(value || 0) * 10) / 10;
+}
+
+function bindAiSettingsEvents() {
+  elements.openAiSettingsButton.addEventListener("click", () => {
+    fillAiSettingsForm();
+    elements.aiDialog.showModal();
+  });
+  elements.closeAiDialogButton.addEventListener("click", () => {
+    elements.aiDialog.close();
+  });
+  elements.aiDialog.addEventListener("click", (event) => {
+    if (event.target === elements.aiDialog) {
+      elements.aiDialog.close();
+    }
+  });
+  elements.aiSettingsForm.addEventListener("submit", (event) => {
+    event.preventDefault();
+    const settings = {
+      enabled: elements.aiEnabledInput.checked,
+      endpoint: elements.aiEndpointInput.value.trim(),
+      model: elements.aiModelInput.value.trim(),
+      apiKey: elements.aiKeyInput.value.trim()
+    };
+    if (settings.enabled && (!settings.endpoint || !settings.model)) {
+      showToast("启用 AI 语义复核前，请填写接口地址和模型名称");
+      return;
+    }
+    state.aiSettings = settings;
+    persistAiSettings();
+    updateEngineStatus();
+    elements.aiDialog.close();
+    showToast(settings.enabled ? "AI 语义复核已启用" : "分析设置已保存");
+  });
+  elements.clearAiSettingsButton.addEventListener("click", () => {
+    state.aiSettings = null;
+    try {
+      sessionStorage.removeItem("climate-evidence-ai-settings");
+    } catch {
+      // Session storage can be unavailable in privacy-restricted contexts.
+    }
+    fillAiSettingsForm();
+    updateEngineStatus();
+    showToast("AI 配置已清除，继续使用规则引擎");
+  });
+}
+
+function loadAiSettings() {
+  try {
+    const stored = sessionStorage.getItem("climate-evidence-ai-settings");
+    state.aiSettings = stored ? JSON.parse(stored) : null;
+  } catch {
+    state.aiSettings = null;
+  }
+}
+
+function persistAiSettings() {
+  try {
+    if (state.aiSettings?.enabled) {
+      sessionStorage.setItem(
+        "climate-evidence-ai-settings",
+        JSON.stringify(state.aiSettings)
+      );
+    } else {
+      sessionStorage.removeItem("climate-evidence-ai-settings");
+    }
+  } catch {
+    showToast("当前浏览器无法保存 AI 配置");
+  }
+}
+
+function fillAiSettingsForm() {
+  const settings = state.aiSettings || {
+    enabled: false,
+    endpoint: "",
+    model: "",
+    apiKey: ""
+  };
+  elements.aiEnabledInput.checked = Boolean(settings.enabled);
+  elements.aiEndpointInput.value = settings.endpoint || "";
+  elements.aiModelInput.value = settings.model || "";
+  elements.aiKeyInput.value = settings.apiKey || "";
+}
+
+function updateEngineStatus() {
+  const aiEnabled = Boolean(
+    state.aiSettings?.enabled &&
+      state.aiSettings.endpoint &&
+      state.aiSettings.model
+  );
+  elements.qualityEngineStatus.textContent = aiEnabled
+    ? "规则基线 + AI 语义复核"
+    : "规则基线 · 可接入 AI 增强";
+  elements.openAiSettingsButton.title = aiEnabled
+    ? "AI 语义复核已配置"
+    : "配置 AI 语义复核";
+}
+
+function isAiReviewEnabled() {
+  return Boolean(
+    state.aiSettings?.enabled &&
+      state.aiSettings.endpoint &&
+      state.aiSettings.model
+  );
+}
+
+async function enhanceAnalysisWithAi(analysis) {
+  const candidates = [
+    ...(analysis.elements || []).map((element) => ({
+      id: element.id,
+      kind: "element",
+      element_type: element.element_type,
+      content: element.content,
+      source_quote: element.source_quote,
+      report_year: element.report_year,
+      page: element.page,
+      existing_review: reviewStatusMeta(element.review_status).label
+    })),
+    ...(analysis.breakpoints || []).map((breakpoint) => ({
+      id: breakpoint.id,
+      kind: "breakpoint",
+      element_type: breakpoint.type,
+      content: `${breakpoint.title}：${breakpoint.description}`,
+      source_quote: "",
+      report_year: "",
+      page: "",
+      existing_review: reviewStatusMeta(breakpoint.review_status).label
+    }))
+  ];
+
+  if (candidates.length === 0) {
+    return;
+  }
+
+  const reviews = [];
+  for (let index = 0; index < candidates.length; index += 24) {
+    const batch = candidates.slice(index, index + 24);
+    const batchReviews = await requestAiReviewBatch(batch);
+    reviews.push(...batchReviews);
+  }
+
+  const reviewMap = new Map(reviews.map((review) => [review.id, review]));
+  for (const element of analysis.elements || []) {
+    applyAiReview(element, reviewMap.get(element.id));
+  }
+  for (const breakpoint of analysis.breakpoints || []) {
+    applyAiReview(breakpoint, reviewMap.get(breakpoint.id));
+  }
+}
+
+async function requestAiReviewBatch(batch) {
+  const systemPrompt = [
+    "你是上市公司可持续报告的证据链复核助手。",
+    "你会收到规则引擎生成的候选要素或断点。",
+    "请逐条判断其是否属于气候承诺、已实施行动、已发生量化绩效或合理断点线索。",
+    "只能复核给定 ID，不得臆造新 ID，不得改写原文。",
+    "suggestion 只能是“确认”“存疑”“排除”之一。",
+    "rationale 控制在 60 个中文字符内，说明判断依据。",
+    "只返回 JSON，格式为：",
+    '{"reviews":[{"id":"C-01","suggestion":"确认","confidence":0.88,"rationale":"包含明确截止年份与量化指标"}]}'
+  ].join("\n");
+  const userPrompt = JSON.stringify(
+    {
+      task: "climate_evidence_semantic_review",
+      candidates: batch
+    },
+    null,
+    2
+  );
+
+  const response = await fetchAiChat([
+    { role: "system", content: systemPrompt },
+    { role: "user", content: userPrompt }
+  ]);
+  const content = extractAiMessageContent(response);
+  const parsed = parseJsonResponse(content);
+  const reviews = Array.isArray(parsed.reviews)
+    ? parsed.reviews
+    : Array.isArray(parsed.elements)
+      ? parsed.elements
+      : [];
+
+  return reviews
+    .map((review) => ({
+      id: String(review.id || ""),
+      suggestion: normalizeAiSuggestion(
+        review.suggestion || review.review_status || review.status
+      ),
+      confidence: normalizeAiConfidence(review.confidence),
+      rationale: String(
+        review.rationale || review.reason || review.notes || ""
+      ).slice(0, 160)
+    }))
+    .filter((review) => review.id && review.suggestion);
+}
+
+async function fetchAiChat(messages) {
+  const endpoint = String(state.aiSettings.endpoint || "").trim();
+  let parsedEndpoint;
+  try {
+    parsedEndpoint = new URL(endpoint);
+  } catch {
+    throw new Error("AI 接口地址格式不正确");
+  }
+  if (!["http:", "https:"].includes(parsedEndpoint.protocol)) {
+    throw new Error("AI 接口必须使用 HTTP 或 HTTPS");
+  }
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 45000);
+  const headers = { "Content-Type": "application/json" };
+  if (state.aiSettings.apiKey) {
+    headers.Authorization = `Bearer ${state.aiSettings.apiKey}`;
+  }
+
+  try {
+    const response = await fetch(parsedEndpoint.href, {
+      method: "POST",
+      headers,
+      signal: controller.signal,
+      body: JSON.stringify({
+        model: state.aiSettings.model,
+        temperature: 0,
+        messages
+      })
+    });
+    if (!response.ok) {
+      const detail = await response.text().catch(() => "");
+      throw new Error(
+        `AI 接口返回 ${response.status}${detail ? `：${detail.slice(0, 120)}` : ""}`
+      );
+    }
+    return await response.json();
+  } catch (error) {
+    if (error.name === "AbortError") {
+      throw new Error("AI 接口请求超时");
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+function extractAiMessageContent(response) {
+  const content =
+    response?.choices?.[0]?.message?.content ??
+    response?.output_text ??
+    response?.response ??
+    response?.content;
+  if (typeof content === "string") {
+    return content;
+  }
+  if (Array.isArray(content)) {
+    return content
+      .map((part) => part?.text || part?.content || "")
+      .join("\n");
+  }
+  throw new Error("AI 接口没有返回可解析的文本");
+}
+
+function parseJsonResponse(content) {
+  const trimmed = String(content || "")
+    .trim()
+    .replace(/^```(?:json)?/i, "")
+    .replace(/```$/, "")
+    .trim();
+  try {
+    return JSON.parse(trimmed);
+  } catch {
+    const start = trimmed.indexOf("{");
+    const end = trimmed.lastIndexOf("}");
+    if (start >= 0 && end > start) {
+      return JSON.parse(trimmed.slice(start, end + 1));
+    }
+    throw new Error("AI 返回结果不是有效 JSON");
+  }
+}
+
+function normalizeAiSuggestion(value) {
+  const text = String(value || "").trim().toLowerCase();
+  if (["确认", "已确认", "confirm", "confirmed", "accept", "accepted"].includes(text)) {
+    return "确认";
+  }
+  if (["排除", "已排除", "reject", "rejected", "exclude", "excluded"].includes(text)) {
+    return "排除";
+  }
+  if (["存疑", "待核", "review", "doubtful", "uncertain"].includes(text)) {
+    return "存疑";
+  }
+  return "";
+}
+
+function clampNumber(value, min, max, fallback) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return fallback;
+  return Math.min(max, Math.max(min, number));
+}
+
+function normalizeAiConfidence(value) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return null;
+  const normalized = number > 1 && number <= 100 ? number / 100 : number;
+  return clampNumber(normalized, 0, 1, null);
+}
+
+function applyAiReview(target, review) {
+  if (!target || !review) return;
+  target.ai_suggestion = review.suggestion;
+  target.ai_confidence = review.confidence;
+  target.ai_rationale = review.rationale;
+  target.analysis_engine = "rule_plus_ai";
+}
+
+function clearPdfDocumentCache() {
+  for (const cached of state.pdfDocumentCache.values()) {
+    cached.loadingTask?.destroy?.().catch?.(() => {});
+  }
+  state.pdfDocumentCache.clear();
 }
 
 function bindDialogEvents() {
@@ -654,7 +1568,7 @@ function renderFileQueue() {
 
   const totalBytes = files.reduce((total, file) => total + file.size, 0);
   elements.currentFileName.textContent =
-    files.length === 1 ? files[0].name : `${files.length} 份可持续报告`;
+    files.length === 1 ? "1 份 PDF 报告" : `${files.length} 份可持续报告`;
   elements.currentFileSize.textContent =
     files.length === 1
       ? formatFileSize(totalBytes)
@@ -716,6 +1630,8 @@ async function handlePdfFiles(fileList) {
 
   const totalBytes = files.reduce((total, file) => total + file.size, 0);
   state.isUploading = true;
+  state.sourceFiles = [...files];
+  clearPdfDocumentCache();
   renderFileQueue();
   elements.currentFileName.textContent =
     files.length === 1 ? files[0].name : `${files.length} 份可持续报告`;
@@ -775,6 +1691,32 @@ async function handlePdfFiles(fileList) {
       payloads.length === 1
         ? analyzeDocument(payloads[0], { multi_document: false })
         : analyzeDocuments(payloads, { multi_document: true });
+    combinedPayload.analysis.analysis_engine = "rule_preview";
+    state.analysisMode = "rule";
+
+    if (isAiReviewEnabled()) {
+      elements.progressMessage.textContent =
+        "规则候选已生成，正在调用 AI 进行语义复核…";
+      try {
+        await enhanceAnalysisWithAi(combinedPayload.analysis);
+        combinedPayload.analysis.analysis_engine = "rule_plus_ai";
+        combinedPayload.analysis.ai_review = {
+          enabled: true,
+          model: state.aiSettings.model,
+          reviewed_at: new Date().toISOString()
+        };
+        state.analysisMode = "ai_enhanced";
+      } catch (aiError) {
+        combinedPayload.analysis.ai_review = {
+          enabled: false,
+          error: aiError.message || "AI 语义复核失败",
+          reviewed_at: new Date().toISOString()
+        };
+        combinedPayload.analysis.analysis_engine = "rule_preview";
+        state.analysisMode = "rule_fallback";
+        showToast("AI 语义复核失败，已自动回退到规则分析");
+      }
+    }
     commitExtraction(combinedPayload);
   } catch (error) {
     elements.dataModeBadge.textContent = "抽取失败";
@@ -942,11 +1884,21 @@ function commitExtraction(payload) {
     showToast("文本抽取完成，但未识别到三类气候要素");
   } else {
     elements.dataModeBadge.textContent =
-      documentCount > 1 ? `合并分析 · ${documentCount} 份` : "规则分析";
+      state.analysisMode === "ai_enhanced"
+        ? documentCount > 1
+          ? `AI 复核 · ${documentCount} 份`
+          : "AI 语义复核"
+        : documentCount > 1
+          ? `合并分析 · ${documentCount} 份`
+          : "规则分析";
     elements.analysisStatusLabel.textContent =
-      documentCount > 1
-        ? `分析完成 · 已合并 ${documentCount} 份报告`
-        : "分析完成 · 已生成证据链";
+      state.analysisMode === "ai_enhanced"
+        ? "分析完成 · AI 语义复核已附加"
+        : state.analysisMode === "rule_fallback"
+          ? "分析完成 · AI 复核失败，已回退规则"
+        : documentCount > 1
+          ? `分析完成 · 已合并 ${documentCount} 份报告`
+          : "分析完成 · 已生成证据链";
     elements.progressMessage.textContent =
       counts.commitments === 0
         ? `已分析 ${documentCount} 份报告、共 ${payload.stats.page_count} 页：未识别到“量化指标 + 截止年份”的有效承诺；另检出 ${counts.actions} 条行动和 ${counts.performances} 项绩效候选。该结果不能解释为企业没有目标，需人工复核。`
@@ -961,9 +1913,15 @@ function commitExtraction(payload) {
   }
 
   elements.summaryFootnoteText.textContent =
-    documentCount > 1
-      ? `当前结果合并了 ${documentCount} 份本地分析报告；跨年度关联由报告年份和语义相似度生成，分类、归并与断点均需人工复核。`
-      : "当前结果由本地规则分析器生成，用于检查页面和证据链流程；分类、关联和断点均需人工复核。";
+    state.analysisMode === "ai_enhanced"
+      ? `当前结果由规则候选与 AI 语义复核共同生成；AI 建议不会自动替代人工结论，分类、归并与断点仍需复核。`
+      : state.analysisMode === "rule_fallback"
+        ? `AI 语义复核未完成，当前已自动回退到本地规则结果。失败原因：${
+            analysis.ai_review?.error || "接口不可用"
+          }`
+      : documentCount > 1
+        ? `当前结果合并了 ${documentCount} 份本地分析报告；跨年度关联由报告年份和语义相似度生成，分类、归并与断点均需人工复核。`
+        : "当前结果由本地规则分析器生成，用于检查页面和证据链流程；分类、关联和断点均需人工复核。";
   elements.logicSection.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
@@ -1571,9 +2529,13 @@ function renderChainInspector(chain, evidenceId = null) {
       <dl class="inspector-meta">
         <div><dt>报告年份</dt><dd>${escapeHtml(String(element.report_year || "待确认"))}</dd></div>
         <div><dt>原文页码</dt><dd>p.${escapeHtml(String(element.page ?? "—"))}</dd></div>
-        <div><dt>复核状态</dt><dd>${escapeHtml(element.review_status || "待核")}</dd></div>
+        <div><dt>复核状态</dt><dd>${reviewStatusMeta(element.review_status).label}</dd></div>
         <div><dt>链路判定</dt><dd>${escapeHtml(chainStatusText)}</dd></div>
       </dl>
+      ${reviewTools(element.id, element.review_status, {
+        canOpenSource: state.sourceFiles.length > 0
+      })}
+      ${aiReviewNote(element)}
       ${
         relatedEvidences.length > 0
           ? `
@@ -1702,6 +2664,10 @@ function renderCommitments(commitments) {
               }</small>
             </div>
           </div>
+          ${aiReviewNote(commitment)}
+          ${reviewTools(commitment.id, commitment.review_status, {
+            canOpenSource: state.sourceFiles.length > 0
+          })}
         </article>
       `;
     })
@@ -1727,13 +2693,17 @@ function renderActions(actions) {
           <div class="action-main">
             <div class="action-top">
               <span class="element-id">${escapeHtml(action.id)}</span>
-              <span class="outline-badge">${escapeHtml(action.review_status)}</span>
+              <span class="outline-badge">${reviewStatusMeta(action.review_status).label}</span>
             </div>
             <h3>${escapeHtml(action.content)}</h3>
-            <p>原文定位：p.${escapeHtml(String(action.page))} · 置信度 ${formatPercent(
+            <p>原文定位：p.${escapeHtml(String(action.page))} · 规则匹配度 ${formatPercent(
               action.confidence
             )}</p>
+            ${aiReviewNote(action)}
           </div>
+          ${reviewTools(action.id, action.review_status, {
+            canOpenSource: state.sourceFiles.length > 0
+          })}
           <div class="action-side">
             <small>对应承诺</small>
             <span class="link-chip">${escapeHtml(action.commitment_id || "无归属")}</span>
@@ -1784,6 +2754,7 @@ function renderPerformances(performances) {
           <p>${escapeHtml(performance.change)} · ${escapeHtml(
             performance.performance_scope
           )}</p>
+          ${aiReviewNote(performance)}
           <div class="performance-footer">
             <span>${escapeHtml(String(performance.report_year))} · p.${escapeHtml(
               String(performance.page)
@@ -1792,6 +2763,9 @@ function renderPerformances(performances) {
               performance.commitment_id || "无归属"
             )}</span>
           </div>
+          ${reviewTools(performance.id, performance.review_status, {
+            canOpenSource: state.sourceFiles.length > 0
+          })}
         </article>
       `;
     })
@@ -1824,19 +2798,20 @@ function renderBreakpoints(breakpoints) {
       (breakpoint) => `
         <article class="breakpoint-card breakpoint-${escapeHtml(
           breakpoint.type.toLowerCase()
-        )}">
+        )}" data-evidence-id="${escapeHtml(breakpoint.id)}">
           <div class="breakpoint-code">${escapeHtml(breakpoint.type)}</div>
           <div class="breakpoint-content">
             <div class="breakpoint-top">
               <span class="element-id">${escapeHtml(breakpoint.id)} · ${
                 labels[breakpoint.type] || "证据断点"
               }</span>
-              <span class="status-pill status-review">${escapeHtml(
+              <span class="status-pill status-review">${reviewStatusMeta(
                 breakpoint.review_status
-              )}</span>
+              ).label}</span>
             </div>
             <h3>${escapeHtml(breakpoint.title)}</h3>
             <p>${escapeHtml(breakpoint.description)}</p>
+            ${aiReviewNote(breakpoint)}
           </div>
           <div class="breakpoint-proof">
             <small>${breakpoint.commitment_id ? `关联 ${escapeHtml(breakpoint.commitment_id)} · ` : ""}缺失证据</small>
@@ -1846,6 +2821,9 @@ function renderBreakpoints(breakpoints) {
                 .join("")}
             </div>
           </div>
+          ${reviewTools(breakpoint.id, breakpoint.review_status, {
+            canOpenSource: state.sourceFiles.length > 0
+          })}
         </article>
       `
     )
@@ -1903,6 +2881,7 @@ function normalizeAnalysis(input) {
       const target = element.normalized_target || {};
       return {
         ...element,
+        review_status: element.review_status || "待核",
         metric: element.metric || target.metric || "气候相关指标",
         target_value: element.target_value || target.target_value || "原文目标",
         due_year: element.due_year || target.due_year || "待确认",
@@ -1917,6 +2896,7 @@ function normalizeAnalysis(input) {
     if (element.element_type === "action") {
       return {
         ...element,
+        review_status: element.review_status || "待核",
         commitment_id: element.commitment_id || null,
         linked_performances: element.linked_performances || [],
         action_result_status:
@@ -1929,6 +2909,7 @@ function normalizeAnalysis(input) {
 
     return {
       ...element,
+      review_status: element.review_status || "待核",
       value: element.value ?? "—",
       unit: element.unit || "",
       change: element.change || "当期披露",
@@ -1943,6 +2924,7 @@ function normalizeAnalysis(input) {
     elements,
     breakpoints: (input.breakpoints || []).map((breakpoint) => ({
       ...breakpoint,
+      review_status: breakpoint.review_status || "待核",
       description: breakpoint.description || breakpoint.reason || "待人工复核",
       missing: breakpoint.missing || breakpoint.missing_evidence || ["待确认证据"]
     }))
@@ -1991,6 +2973,9 @@ function resetToDemo() {
     return;
   }
   state.pendingFiles = [];
+  state.sourceFiles = [];
+  clearPdfDocumentCache();
+  state.analysisMode = "sample";
   renderFileQueue();
   state.extraction = null;
   state.currentText = "";

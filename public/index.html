@@ -106,7 +106,20 @@
               <i></i>
               浏览器本地分析已就绪
             </span>
-            <button class="button button-quiet" id="open-schema-button" type="button">
+            <button class="button button-quiet" id="open-ai-settings-button" type="button" title="分析设置">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1" />
+                <circle cx="12" cy="12" r="4"></circle>
+              </svg>
+              分析设置
+            </button>
+            <button class="button button-quiet" id="open-export-button" type="button" title="导出结果">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M12 3v12M7 10l5 5 5-5M5 17v3h14v-3" />
+              </svg>
+              导出结果
+            </button>
+            <button class="button button-quiet" id="open-schema-button" type="button" title="查看输出协议">
               <svg viewBox="0 0 24 24" aria-hidden="true">
                 <path d="m8 9-4 3 4 3M16 9l4 3-4 3M13 5l-2 14" />
               </svg>
@@ -126,7 +139,7 @@
             </div>
             <div class="heading-meta">
               <span>DEMO</span>
-              <strong>v0.7</strong>
+              <strong>v0.8</strong>
               <small>当前阶段：证据链分析</small>
             </div>
           </section>
@@ -152,9 +165,6 @@
               <div
                 class="dropzone"
                 id="dropzone"
-                role="button"
-                tabindex="0"
-                aria-label="选择或拖入 PDF 文件"
               >
                 <span class="upload-illustration" aria-hidden="true">
                   <svg viewBox="0 0 64 64">
@@ -235,7 +245,7 @@
                   正在读取 PDF 页面与文本层…
                 </p>
                 <div class="file-quick-actions">
-                  <span id="analysis-status-label">正在分析…</span>
+                  <span id="analysis-status-label" role="status" aria-live="polite">正在分析…</span>
                   <button
                     class="text-button"
                     id="toggle-text-button"
@@ -318,6 +328,50 @@
                 </em>
               </p>
             </aside>
+          </section>
+
+          <section class="quality-section" id="quality-section">
+            <div class="quality-heading">
+              <div>
+                <p class="section-kicker">EVIDENCE & QUALITY</p>
+                <h2>结果可信度与方法边界</h2>
+                <p>
+                  当前页面区分“流程已跑通”和“真实准确率已证明”两件事。下列指标来自已固化的规则回归与真实报告冒烟测试。
+                </p>
+              </div>
+              <span class="quality-status" id="quality-engine-status">规则基线 · 可接入 AI 增强</span>
+            </div>
+            <div class="quality-metrics">
+              <article>
+                <strong>14 / 14</strong>
+                <span>规则防退化回归</span>
+                <small>覆盖 A/B/C、口号、未来计划、外部目标等边界</small>
+              </article>
+              <article>
+                <strong>484 页</strong>
+                <span>真实报告冒烟测试</span>
+                <small>2022–2025 四份报告，合并分析约 3.7–4.4 秒</small>
+              </article>
+              <article>
+                <strong>100%</strong>
+                <span>当前结果原文定位率</span>
+                <small>表示保留原文与页码，不等同于分类准确率</small>
+              </article>
+              <article>
+                <strong>待建立</strong>
+                <span>双人标注金标准</span>
+                <small>尚未计算真实 Precision、Recall、F1 与断点准确率</small>
+              </article>
+            </div>
+            <div class="quality-boundary">
+              <p>
+                <strong>已知边界</strong>
+                表格与图表中的绩效可能漏抽；扫描页需要 OCR；跨年度承诺归并仍是候选结果；所有断点均需人工复核。
+              </p>
+              <button class="text-button" id="open-methodology-button" type="button">
+                查看分析口径
+              </button>
+            </div>
           </section>
 
           <section class="text-panel" id="text-panel" hidden>
@@ -588,6 +642,123 @@
           复制 JSON Schema
         </button>
       </div>
+    </dialog>
+
+    <dialog class="schema-dialog source-dialog" id="source-dialog">
+      <div class="dialog-header">
+        <div>
+          <p class="section-kicker">SOURCE TRACE</p>
+          <h2 id="source-dialog-title">原文核验</h2>
+          <p class="source-dialog-meta" id="source-dialog-meta"></p>
+        </div>
+        <button class="icon-button" id="close-source-dialog-button" type="button" aria-label="关闭原文核验">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="m6 6 12 12M18 6 6 18" />
+          </svg>
+        </button>
+      </div>
+      <div class="source-viewer-toolbar">
+        <button class="button button-quiet" id="source-prev-page" type="button" disabled>
+          上一页
+        </button>
+        <span id="source-page-indicator">第 1 页</span>
+        <button class="button button-quiet" id="source-next-page" type="button" disabled>
+          下一页
+        </button>
+      </div>
+      <div class="source-viewer-layout">
+        <div class="source-canvas-shell" id="source-canvas-shell">
+          <canvas id="source-pdf-canvas"></canvas>
+          <div class="source-highlight-layer" id="source-highlight-layer" aria-hidden="true"></div>
+          <div class="source-loading" id="source-loading">正在渲染原文…</div>
+        </div>
+        <aside class="source-quote-panel">
+          <p class="section-kicker">LINKED EVIDENCE</p>
+          <blockquote id="source-quote"></blockquote>
+          <dl id="source-evidence-meta"></dl>
+          <p class="source-note">
+            高亮依据 PDF 文本层坐标定位；扫描页或复杂图表可能需要回到原报告人工核对。
+          </p>
+        </aside>
+      </div>
+    </dialog>
+
+    <dialog class="compact-dialog" id="export-dialog">
+      <div class="dialog-header">
+        <div>
+          <p class="section-kicker">AUDIT EXPORT</p>
+          <h2>导出审查结果</h2>
+        </div>
+        <button class="icon-button" id="close-export-dialog-button" type="button" aria-label="关闭导出">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="m6 6 12 12M18 6 6 18" />
+          </svg>
+        </button>
+      </div>
+      <p class="dialog-intro">
+        导出内容包含要素类型、原文、报告年份、页码、关联编号、复核状态与当前分析模式。
+      </p>
+      <div class="export-choice-grid">
+        <button class="export-choice" id="export-json-button" type="button">
+          <strong>JSON</strong>
+          <span>保留完整结构与复核记录，适合后续系统接入。</span>
+        </button>
+        <button class="export-choice" id="export-csv-button" type="button">
+          <strong>CSV</strong>
+          <span>适合 Excel 打开、人工抽检与团队内部流转。</span>
+        </button>
+      </div>
+    </dialog>
+
+    <dialog class="compact-dialog ai-dialog" id="ai-dialog">
+      <div class="dialog-header">
+        <div>
+          <p class="section-kicker">ANALYSIS ENGINE</p>
+          <h2>分析设置</h2>
+        </div>
+        <button class="icon-button" id="close-ai-dialog-button" type="button" aria-label="关闭分析设置">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="m6 6 12 12M18 6 6 18" />
+          </svg>
+        </button>
+      </div>
+      <p class="dialog-intro">
+        默认使用可解释的本地规则引擎。若配置 OpenAI 兼容接口，可在规则候选基础上启用 AI 语义复核；密钥仅保存在当前浏览器会话。
+      </p>
+      <form class="engine-form" id="ai-settings-form">
+        <label class="toggle-row">
+          <span>
+            <strong>启用 AI 语义复核</strong>
+            <small>仅发送规则候选及必要原文片段，不发送完整 PDF。</small>
+          </span>
+          <input id="ai-enabled-input" type="checkbox" />
+        </label>
+        <label>
+          <span>接口地址</span>
+          <input
+            id="ai-endpoint-input"
+            type="url"
+            inputmode="url"
+            placeholder="https://api.example.com/v1/chat/completions"
+            autocomplete="off"
+          />
+        </label>
+        <label>
+          <span>模型名称</span>
+          <input id="ai-model-input" type="text" placeholder="gpt-4.1-mini" autocomplete="off" />
+        </label>
+        <label>
+          <span>API Key</span>
+          <input id="ai-key-input" type="password" placeholder="仅保存在当前标签页会话" autocomplete="off" />
+        </label>
+        <div class="engine-form-note">
+          接口必须允许浏览器跨域请求。未配置、请求失败或结果不符合协议时，将自动回退到规则分析。
+        </div>
+        <div class="dialog-actions engine-dialog-actions">
+          <button class="button button-quiet" id="clear-ai-settings-button" type="button">清除配置</button>
+          <button class="button button-primary" type="submit">保存设置</button>
+        </div>
+      </form>
     </dialog>
 
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
